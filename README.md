@@ -1,6 +1,13 @@
 # MostarManusCode
 
-MostarManus 是一个面向个人知识库和长期对话的 AI Agent 项目。它将 Spring Boot 后端、OpenAI-compatible 模型接口、PostgreSQL/pgvector、结构化记忆和记忆宫殿组合在一起，并提供 React/Vite 前端与可直接部署的 Docker 配置。
+MostarManus 是一个“个人博客 + AI Agent”联合项目：博客负责公开内容、项目档案和学习笔记，Agent 负责对话、知识库检索、长期记忆和工具调用。两者通过同域 `/api` 反向代理连接，博客页面可以直接调用 Agent 能力。
+
+## 仓库内容
+
+- **博客本体 (`blog/`)**：基于 Node.js 的 Markdown 静态站点生成器，包含文章、项目页、分类筛选、RSS、Sitemap、SEO 元数据和响应式主题。
+- **Agent 后端 (`src/`)**：基于 Spring Boot / Spring AI 的对话、RAG、记忆、记忆宫殿和工具服务。
+- **Agent 工作台 (`frontend/`)**：React/Vite 交互界面，支持流式聊天、记忆模式、知识库检索和管理操作。
+- **部署配置 (`deploy/`)**：服务器 Docker Compose 和反向代理配置。
 
 ## 功能概览
 
@@ -17,20 +24,23 @@ MostarManus 是一个面向个人知识库和长期对话的 AI Agent 项目。�
 ## 架构
 
 ```text
-浏览器 / React 前端 / 静态前端
-                │
-                ▼
-        Spring Boot REST API
-          ├─ Agent 编排与工具调用
-          ├─ 对话记忆与记忆宫殿
-          ├─ Markdown 知识库与 RAG
-          └─ 访问控制与限流
-                │
-       ┌────────┼────────┐
-       ▼        ▼        ▼
-  LLM API   PostgreSQL  可选 MinIO
- (OpenAI-   + pgvector  原始文档备份
- compatible)
+浏览器
+  │
+  ├─ Caddy/Nginx ──► blog/ 静态博客页面
+  │        │
+  │        └────────► /api ──► Spring Boot REST API
+  │                                  ├─ Agent 编排与工具调用
+  │                                  ├─ 对话记忆与记忆宫殿
+  │                                  ├─ Markdown 知识库与 RAG
+  │                                  └─ 访问控制与限流
+  │
+  └─ frontend/ React 工作台（开发时代理到 /api）
+                                       │
+                              ┌────────┼────────┐
+                              ▼        ▼        ▼
+                         LLM API   PostgreSQL  可选 MinIO
+                        (OpenAI-   + pgvector  原始文档备份
+                        compatible)
 ```
 
 ## 技术栈
@@ -41,6 +51,7 @@ MostarManus 是一个面向个人知识库和长期对话的 AI Agent 项目。�
 - PostgreSQL + pgvector
 - Maven Wrapper
 - React 19 + Vite + TypeScript
+- Node.js 18+ + Markdown 静态生成
 - Docker Compose
 
 ## 快速开始
@@ -94,6 +105,17 @@ npm run dev
 ```
 
 Vite 开发服务器会将 `/api` 代理到本地后端 `http://localhost:8123`。
+
+### 5. 构建博客静态站点
+
+```powershell
+cd blog
+npm install
+npm run test
+npm run build
+```
+
+生成结果位于 `blog/dist-build/`，可由 Caddy/Nginx 直接托管。博客源码、文章和主题样式分别位于 `blog/src/` 与 `blog/public/`。
 
 ## 配置说明
 
@@ -180,6 +202,7 @@ Authorization: Bearer <MOSTAR_ADMIN_TOKEN>
 
 ```text
 .
+├── blog/                       Markdown 博客源码、静态生成器和文章
 ├── src/main/java/              Spring Boot 后端、Agent、记忆、RAG 与工具
 ├── src/main/resources/         application.yml、生产配置与静态前端
 ├── src/test/                   后端单元测试
@@ -216,6 +239,7 @@ deploy/docker-compose.server.yml
 ```
 
 生产配置默认使用环境变量连接 PostgreSQL/pgvector，并将 Agent 只绑定到回环地址，由现有 Caddy/Nginx 反向代理暴露。数据库端口不应直接开放到公网。
+博客生产发布流程是先构建 `blog/dist-build/`，再由 Caddy 原子切换静态站点；同一域名下的 `/api/*` 转发到 Agent 后端。
 
 ## 相关文档
 
@@ -223,6 +247,7 @@ deploy/docker-compose.server.yml
 - [本地 pgvector 接入](docs/pgvector-local.md)
 - [工具调用说明](docs/function-calling.md)
 - [评估用例](docs/eval-cases.md)
+- [博客静态站点说明](blog/README.md)
 
 ## 安全提醒
 

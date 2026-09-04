@@ -1,0 +1,64 @@
+# MostarManus Blog - Caddy v2 Configuration (Round 3 Repair)
+# The Caddy container mounts /opt/blog/site at /srv.
+
+# HTTP -> HTTPS redirect (308)
+:80 {
+	redir https://{host}{uri} 308
+}
+
+# www -> canonical host
+www.mostarmanus.ink {
+	redir https://mostarmanus.ink{uri} 308
+}
+
+mostarmanus.ink {
+	encode zstd gzip
+	root * /srv
+
+	# These headers apply to normal and error responses.
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+
+	# Hashed CSS, fonts, and future hashed assets can be cached for one year.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	# Directory URLs are the generated HTML pages, including article and project detail pages.
+	@html path_regexp html ^/(?:$|.*\.html$|(?:blog|projects|terms)(?:/.*)?$|(?:about|friends)/?$)
+	header @html Cache-Control "no-cache"
+
+	@metadata path /rss.xml /sitemap.xml /robots.txt
+	header @metadata Cache-Control "public, max-age=300"
+
+	@static path /favicon.svg /avatar.svg /og-image.png /logo.png
+	header @static Cache-Control "public, max-age=86400"
+
+	file_server
+
+	# Preserve a real 404 status while rendering the generated 404 page.
+	handle_errors {
+		@not_found expression {err.status_code} == 404
+		header {
+			-Server
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "SAMEORIGIN"
+			Referrer-Policy "strict-origin-when-cross-origin"
+			Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		}
+		header Cache-Control "no-cache"
+		rewrite @not_found /404.html
+		file_server
+	}
+
+	log {
+		output discard
+		level ERROR
+	}
+}
