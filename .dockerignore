@@ -1,0 +1,16 @@
+target
+.git
+.idea
+.vscode
+frontend/node_modules
+frontend/dist
+miniprogram
+node_modules
+output
+tmp
+logs
+data
+docs
+scripts/__pycache__
+*.md
+!README.md

@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: MostarManus-ai-agent-pro
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.ai.autoconfigure.vectorstore.pgvector.PgVectorStoreAutoConfiguration
+  ai:
+    model:
+      chat: openai
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      api-key: ${DASHSCOPE_API_KEY:${OPENAI_API_KEY:}}
+      embedding:
+        enabled: false
+      chat:
+        options:
+          model: ${OPENAI_MODEL:qwen3.7-flash}
+app:
+  security:
+    admin-token: ${MOSTAR_ADMIN_TOKEN:}
+    admin-token-required: ${MOSTAR_ADMIN_TOKEN_REQUIRED:false}
+    chat-token-required: ${MOSTAR_CHAT_TOKEN_REQUIRED:false}
+    chat-requests-per-minute: ${MOSTAR_CHAT_REQUESTS_PER_MINUTE:20}
+    max-chat-message-chars: ${MOSTAR_MAX_CHAT_MESSAGE_CHARS:12000}
+    max-chat-image-bytes: ${MOSTAR_MAX_CHAT_IMAGE_BYTES:4194304}
+  embedding:
+    openai:
+      base-url: ${spring.ai.openai.base-url}
+      api-key: ${spring.ai.openai.api-key}
+      model: text-embedding-3-small
+      # Optional. Leave empty for models that do not support an explicit dimensions parameter.
+      dimensions:
+  postgres:
+    enabled: false
+  memory:
+    mode: DEFAULT
+    palace:
+      enabled: true
+      drawer-limit: 6
+      anchor-limit: 4
+      context-char-limit: 1800
+      write-async: true
+      vector-enabled: true
+    structured:
+      enabled: false
+      extractor: llm
+server:
+  port: 8123
+  servlet:
+    context-path: /api
+
+#spingdoc-openai-API??????
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.moyuyu.yuaiagentpro.controller
+#knife4j ??????
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+logging:
+  level:
+    org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: debug
+
+
+

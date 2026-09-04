@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MostarManus Agent Console</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">MostarManus</p>
+        <h1>Agent 控制台</h1>
+        <p class="subcopy">一个用于测试聊天、记忆模式和本地知识库 RAG 的轻量前端。</p>
+      </div>
+      <div class="hero-card">
+        <span class="pulse"></span>
+        <div>
+          <strong id="healthStatus">检查中</strong>
+          <small>后端服务状态</small>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <aside class="sidebar">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>会话</h2>
+            <button id="newChatBtn" class="ghost-btn" type="button">新建</button>
+          </div>
+          <label class="field">
+            <span>Chat ID</span>
+            <input id="chatIdInput" type="text" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>记忆模式</span>
+            <select id="memoryModeSelect">
+              <option value="">DEFAULT</option>
+              <option value="PALACE">PALACE</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="panel knowledge-panel">
+          <div class="panel-head">
+            <h2>知识库</h2>
+            <button id="refreshStatsBtn" class="ghost-btn" type="button">刷新</button>
+          </div>
+          <dl class="stats-grid">
+            <div><dt>文件</dt><dd id="indexedFiles">-</dd></div>
+            <div><dt>分片</dt><dd id="indexedChunks">-</dd></div>
+            <div><dt>Top K</dt><dd id="topK">-</dd></div>
+            <div><dt>阈值</dt><dd id="threshold">-</dd></div>
+          </dl>
+          <button id="reindexBtn" class="danger-btn" type="button">重建索引</button>
+          <p class="hint">重建会重新调用 embedding，数据多时会比较慢。</p>
+        </div>
+      </aside>
+
+      <section class="chat-panel">
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <form id="chatForm" class="composer">
+          <textarea id="messageInput" rows="3" placeholder="问问 MostarManus，比如：我想准备 Java 后端校招，应该怎么规划？"></textarea>
+          <div class="composer-actions">
+            <label class="toggle">
+              <input id="streamToggle" type="checkbox" checked>
+              <span>SSE</span>
+            </label>
+            <button id="sendBtn" type="submit">发送</button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="debug-panel">
+        <div class="panel">
+          <div class="panel-head">
+            <h2>RAG 调试</h2>
+            <button id="searchBtn" class="ghost-btn" type="button">检索</button>
+          </div>
+          <label class="field">
+            <span>检索词</span>
+            <input id="searchInput" type="text" value="Java" autocomplete="off">
+          </label>
+          <div id="searchResults" class="search-results"></div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <template id="messageTemplate">
+    <article class="message">
+      <div class="avatar"></div>
+      <div>
+        <header></header>
+        <p></p>
+      </div>
+    </article>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>

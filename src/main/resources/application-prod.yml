@@ -1,0 +1,66 @@
+# 生产环境配置（服务器 2C2G，与 pgvector 同机 Docker 部署）
+# 敏感信息一律走环境变量，见项目根目录 .env.example
+spring:
+  datasource:
+    url: jdbc:postgresql://${PG_HOST:postgres}:5432/${POSTGRES_DB:app}
+    username: ${POSTGRES_USER:app}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  ai:
+    openai:
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      api-key: ${DASHSCOPE_API_KEY:${OPENAI_API_KEY:}}
+      embedding:
+        enabled: false
+      chat:
+        options:
+          model: ${OPENAI_MODEL:qwen3.7-flash}
+    mcp:
+      client:
+        enabled: false   # 生产不启用高德 MCP（stdio 方式不可跨平台且与站点无关）
+
+app:
+  security:
+    admin-token: ${MOSTAR_ADMIN_TOKEN:}
+    admin-token-required: ${MOSTAR_ADMIN_TOKEN_REQUIRED:true}
+    chat-token-required: ${MOSTAR_CHAT_TOKEN_REQUIRED:false}
+    chat-requests-per-minute: ${MOSTAR_CHAT_REQUESTS_PER_MINUTE:20}
+    max-chat-message-chars: ${MOSTAR_MAX_CHAT_MESSAGE_CHARS:12000}
+    max-chat-image-bytes: ${MOSTAR_MAX_CHAT_IMAGE_BYTES:4194304}
+  embedding:
+    openai:
+      base-url: ${SILICONFLOW_BASE_URL:https://api.siliconflow.cn}
+      api-key: ${SILICONFLOW_API_KEY:}
+      model: ${EMBEDDING_MODEL:netease-youdao/bce-embedding-base_v1}
+  proxy:
+    enabled: false       # 服务器直连外网，不再走本地代理
+  postgres:
+    enabled: true
+  memory:
+    mode: DEFAULT
+    structured:
+      enabled: true
+      extractor: rule
+  pgvector:
+    enabled: true
+    schema-name: public
+    table-name: ${PGVECTOR_TABLE:knowledge_vector_store_bce}
+    dimensions: 768
+    initialize-schema: true
+  knowledge:
+    enabled: true
+    source: local
+    local:
+      root-path: ${KNOWLEDGE_ROOT_PATH:/data/knowledge}
+    search:
+      top-k: 5
+      similarity-threshold: 0.0
+    reindex-on-startup: ${KNOWLEDGE_REINDEX_ON_STARTUP:false}
+  searchapi:
+    api-key: ${SEARCHAPI_API_KEY:}
+  amap:
+    api-key: ${AMAP_API_KEY:}
+
+logging:
+  level:
+    org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor: info

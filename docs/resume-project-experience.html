@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MostarManus 项目经历</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f1f3f7;
+      color: #8f949d;
+      font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      line-height: 1.9;
+    }
+
+    .page {
+      width: min(1010px, calc(100vw - 48px));
+      margin: 38px auto;
+    }
+
+    .experience-card {
+      background: #fff;
+      border: 1px solid #5fb1ff;
+      border-radius: 6px;
+      box-shadow: 0 0 8px rgba(66, 159, 255, 0.36);
+      padding: 12px 30px 22px;
+    }
+
+    .entry {
+      margin: 0 0 18px;
+    }
+
+    .entry:last-child {
+      margin-bottom: 0;
+    }
+
+    .entry-title {
+      margin: 0 0 14px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #9ca0a8;
+    }
+
+    .entry-title .time {
+      display: inline-block;
+      min-width: 180px;
+      margin-right: 4px;
+    }
+
+    .entry p {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #9fa3aa;
+    }
+
+    .entry p:last-child {
+      margin-bottom: 0;
+    }
+
+    @media (max-width: 720px) {
+      .page {
+        width: calc(100vw - 28px);
+        margin: 22px auto;
+      }
+
+      .experience-card {
+        padding: 14px 18px 20px;
+      }
+
+      .entry-title {
+        font-size: 16px;
+      }
+
+      .entry-title .time {
+        display: block;
+        min-width: 0;
+      }
+
+      .entry p {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="experience-card" aria-label="项目经历">
+      <article class="entry">
+        <h2 class="entry-title"><span class="time">2026.03 ~ 2026.04</span>“MostarManus” AI Agent 智能学习与任务协作助手</h2>
+        <p>能力表述：熟悉 Spring AI / LangChain4j 等 Agent 开发框架的核心思想，理解 Plan-and-Execute、RAG、Function Calling 与多轮记忆等设计范式，具备从对话接口、提示词约束、工具调用到向量检索和长期记忆管理的 Agent 后端架构落地能力。</p>
+        <p>项目描述：基于 Spring Boot 3、Spring AI 和 OpenAI-compatible 模型服务构建的 AI Agent 后端系统，面向学习规划、任务协作和知识问答场景。项目支持普通对话与 SSE 流式输出，接入本地知识库 RAG；并通过 Function Calling 扩展时间查询、计算器、模拟天气、任务管理、学习计划保存和长期记忆检索等工具能力；同时使用 PostgreSQL + pgvector 实现向量存储与语义检索，使用 Kryo 实现本地多轮会话记忆。</p>
+        <p>职责描述：负责核心 Agent 链路设计与后端功能开发，包括 ChatClient 构建、系统提示词约束、RAG Advisor 接入、工具调用注册、会话记忆持久化、违禁词短路拦截、异常提示封装和健康检查接口开发。围绕 RAG 未命中、多轮记忆、空输入、非法 chatId、工具调用和安全拦截等场景编写自动化测试与手动评测用例，提升系统稳定性和可验证性。</p>
+      </article>
+
+      <article class="entry">
+        <h2 class="entry-title"><span class="time">2026.04 ~ 2026.04</span>AI Agent 本地 pgvector 与评测体系完善</h2>
+        <p>项目描述：围绕 MostarManus 的本地知识增强与质量验证能力进行补强，新增 local profile 下的 PostgreSQL / pgvector 配置、健康检查文档和最小评测集，降低本地调试和回归验证成本。</p>
+        <p>职责描述：负责整理本地启动方式、pgvector 健康检查、业务数据检查和评测流程，补充普通 Chat、SSE 流式接口、RAG 未命中、多轮记忆、安全拦截和参数校验等验证用例，并将工具调用说明沉淀为项目文档，方便后续扩展新工具与排查问题。</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

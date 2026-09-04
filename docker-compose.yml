@@ -1,0 +1,71 @@
+name: mostarmanus
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: mostar-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mostar}
+      POSTGRES_USER: ${POSTGRES_USER:-mostar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=30
+      - -c
+      - work_mem=4MB
+      - -c
+      - effective_cache_size=512MB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 384m
+    # 不映射端口到宿主机，只在内部网络可达，避免 5432 暴露公网
+    networks: [mostar]
+
+  app:
+    build: .
+    container_name: mostar-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      OPENAI_API_KEY: ${DASHSCOPE_API_KEY:?DASHSCOPE_API_KEY is required}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode}
+      OPENAI_MODEL: ${OPENAI_MODEL:-qwen3.7-flash}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      SEARCHAPI_API_KEY: ${SEARCHAPI_API_KEY:-}
+      AMAP_API_KEY: ${AMAP_API_KEY:-}
+      MOSTAR_ADMIN_TOKEN: ${MOSTAR_ADMIN_TOKEN:?MOSTAR_ADMIN_TOKEN is required}
+      MOSTAR_ADMIN_TOKEN_REQUIRED: ${MOSTAR_ADMIN_TOKEN_REQUIRED:-true}
+      MOSTAR_CHAT_TOKEN_REQUIRED: ${MOSTAR_CHAT_TOKEN_REQUIRED:-false}
+      MOSTAR_CHAT_REQUESTS_PER_MINUTE: ${MOSTAR_CHAT_REQUESTS_PER_MINUTE:-20}
+      POSTGRES_DB: ${POSTGRES_DB:-mostar}
+      POSTGRES_USER: ${POSTGRES_USER:-mostar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      # 知识库 Markdown 源（博客文章等）
+      - ./data/knowledge:/data/knowledge
+      # 聊天记忆 / 记忆宫殿文件兜底存储
+      - ./data/app-tmp:/app/tmp
+    ports:
+      # 只绑回环地址，公网流量经 Nginx 反代进入
+      - "127.0.0.1:8123:8123"
+    mem_limit: 896m
+    networks: [mostar]
+
+volumes:
+  pgdata:
+
+networks:
+  mostar:
+    driver: bridge
