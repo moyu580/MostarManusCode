@@ -10,6 +10,7 @@ import { mdToHtml, escapeHtml, escapeXml } from './markdown.mjs';
 import config from './config.mjs';
 import { isValidCategory } from './filters.mjs';
 import { getCompactPaginationItems, parsePaginationJump } from './pagination.mjs';
+import { HomePageBody, renderPostCard, RelatedPosts, PostMeta } from './ui/index.mjs';
 
 const siteName = config.site.seoName || config.site.title;
 const ROOT = process.cwd();
@@ -236,6 +237,8 @@ function loadCollection(dir) {
         if (typeof data.draft !== 'boolean') {
           data.draft = false;
         }
+        // 阅读时长（参考 fuwari / morethan-log 的列表 meta）
+        data.readingMinutes = estimateReadingMinutes(body);
       }
       
       // 项目额外校验
@@ -257,6 +260,18 @@ const projects = loadCollection('projects').sort(
 );
 
 const fmt = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d));
+
+/** 中英混排阅读时长估算：约 400 汉字/分 + 200 英文词/分 */
+export function estimateReadingMinutes(markdown) {
+  const text = String(markdown || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/!?\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/[#>*_\-|]/g, ' ');
+  const cjk = (text.match(/[一-鿿]/g) || []).length;
+  const latin = (text.match(/[A-Za-z][A-Za-z0-9+#.-]*/g) || []).length;
+  return Math.max(1, Math.round(cjk / 400 + latin / 200));
+}
 
 // ---------- 资产哈希工具 ----------
 function fileHash(content) {
@@ -350,7 +365,7 @@ function footer() {
 function layout(opts) {
   const { title, description, active, body, jsonLd, type, pageUrl, imageUrl, canonical } = opts;
   const headOpts = { type, pageUrl, imageUrl, canonical, jsonLd };
-  
+
   return `${head(title, description, headOpts)}
 <body>
 <a href="#main-content" class="skip-link">跳到正文</a>
@@ -392,12 +407,55 @@ document.addEventListener('DOMContentLoaded',function(){
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&nv.classList.contains('open')){e.preventDefault();setNavOpen(false,true);}});
     document.addEventListener('click',function(e){if(nv.classList.contains('open')&&!nv.contains(e.target)&&!nt.contains(e.target)){setNavOpen(false,true);}});
   }
+  /* Agent health: the profile card must reflect the real backend state. */
+  var agentStatus=document.querySelector('[data-agent-status]');
+  var agentStatusDot=document.querySelector('[data-agent-status-dot]');
+  if(agentStatus){
+    var agentStatusText=agentStatus.querySelector('span');
+    var setAgentStatus=function(state,label){
+      agentStatus.setAttribute('data-state',state);
+      if(agentStatusDot){agentStatusDot.setAttribute('data-state',state);}
+      if(agentStatusText){agentStatusText.textContent=label;}
+    };
+    var localPreview=/^(localhost|127(?:\\.\\d{1,3}){3}|\\[::1\\])$/.test(location.hostname);
+    if(localPreview||location.protocol==='file:'){
+      setAgentStatus('offline','部署后检测助手状态');
+    }else{
+      var healthController=typeof AbortController==='function'?new AbortController():null;
+      var healthTimer=setTimeout(function(){if(healthController){healthController.abort();}},3500);
+      fetch('/api/health',{
+        method:'GET',
+        headers:{Accept:'text/plain'},
+        cache:'no-store',
+        credentials:'same-origin',
+        signal:healthController?healthController.signal:undefined
+      }).then(function(response){
+        if(!response.ok){throw new Error('health '+response.status);}
+        return response.text();
+      }).then(function(body){
+        if(body.trim().toLowerCase()!=='ok'){throw new Error('unexpected health response');}
+        setAgentStatus('online','助手在线');
+      }).catch(function(){
+        setAgentStatus('offline','助手暂时离线');
+      }).finally(function(){clearTimeout(healthTimer);});
+    }
+  }
+  var profileCard=document.querySelector('.rx-profile');
+  var profileToggle=profileCard&&profileCard.querySelector('.rxp-toggle');
+  if(profileCard&&profileToggle){
+    profileToggle.addEventListener('click',function(){
+      var expanded=profileCard.classList.toggle('rx-profile-details-open');
+      profileToggle.setAttribute('aria-expanded',String(expanded));
+      profileToggle.textContent=expanded?'收起方向与技能':'查看方向与技能';
+    });
+  }
   /* Scroll reveal animation */
-  if(!window.matchMedia('(prefers-reduced-motion:reduce)').matches){var es=document.querySelectorAll('.section,.card,.spotlight,.award-card,.hero-card');es.forEach(function(e){e.classList.add('reveal');});var ob=new IntersectionObserver(function(en){en.forEach(function(x){if(x.isIntersecting){x.target.classList.add('visible');ob.unobserve(x.target);}});},{threshold:0.08,rootMargin:'0px 0px -40px 0px'});es.forEach(function(e){ob.observe(e);});}
+  if(!window.matchMedia('(prefers-reduced-motion:reduce)').matches){var es=document.querySelectorAll('.section,.card,.spotlight,.award-card,.rx-profile,.rx-card');es.forEach(function(e){e.classList.add('reveal');});var showAll=function(){es.forEach(function(e){e.classList.add('visible');});};var ob=new IntersectionObserver(function(en){en.forEach(function(x){if(x.isIntersecting){x.target.classList.add('visible');ob.unobserve(x.target);}});},{threshold:0.08,rootMargin:'0px 0px -40px 0px'});es.forEach(function(e){ob.observe(e);});setTimeout(showAll,900);}
   /* Initialize theme button ARIA state */
   (function(){var btn=document.getElementById('theme-toggle');if(btn){btn.setAttribute('aria-pressed',String(document.documentElement.classList.contains('dark')));btn.setAttribute('aria-label',document.documentElement.classList.contains('dark')?'切换到浅色主题':'切换到深色主题');}})();
 });
 </script>
+<script src="/agent-widget.js" defer></script>
 </body></html>`;
 }
 
@@ -463,7 +521,7 @@ export function generateJsonLd(type, data) {
   }
 }
 
-// ---------- 小组件 ----------
+// ---------- 小组件（React SSR 已接管首页/卡片，保留兼容导出） ----------
 function socialLinks() {
   const s = config.social;
   const out = [];
@@ -545,85 +603,30 @@ function home() {
     posts.length ? { value: posts.length, label: '篇笔记' } : null,
     projects.length ? { value: projects.length, label: '个项目' } : null,
     awards.length ? { value: awards.length, label: '项荣誉' } : null,
-  ]
-    .filter(Boolean)
-    .map((stat) => `<div class="stat"><b>${stat.value}</b><span>${stat.label}</span></div>`)
-    .join('');
+  ].filter(Boolean);
   const topSkills = (resume.skills || []).flatMap((s) => s.items).slice(0, 6);
   const cats = Object.entries(config.categories);
-  
+
   const jsonLd = [
     generateJsonLd('website'),
     generateJsonLd('person')
   ].filter(Boolean);
 
-  const body = `
-  <section class="hero">
-    <div class="hero-grid">
-      <div class="hero-text animate-in">
-        <span class="eyebrow">具身智能 · 大模型驱动机器人</span>
-        <h1>我是 <span class="grad">${escapeHtml(resume.name)}</span><br>让机器人学会「自己想」</h1>
-        <p class="lead">${escapeHtml(resume.summary || '')}</p>
-        ${stats ? `<div class="stats">${stats}</div>` : ''}
-        <div class="cta">
-          <a class="btn btn-primary" href="/blog/">阅读笔记</a>
-          <a class="btn btn-outline" href="/about/">查看履历</a>
-        </div>
-        ${socialLinksHtml()}
-      </div>
-      <aside class="hero-card animate-in delay-3">
-        <img class="avatar-lg" src="${resume.avatar}" alt="${escapeHtml(resume.name)}">
-        <div class="hc-name">${escapeHtml(resume.name)}</div>
-        <div class="hc-role">${escapeHtml(resume.title || '')}</div>
-        <div class="hc-tags">${topSkills.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-      </aside>
-    </div>
-  </section>
+  const body = HomePageBody({
+    resume,
+    stats,
+    skills: topSkills,
+    featured,
+    posts: latest,
+    awards,
+    categories: cats,
+  });
 
-  ${featured ? `<section class="section"><div class="section-head"><h2>🤖 主打项目</h2><a class="more" href="/projects/">全部项目 →</a></div>
-    <a class="spotlight" href="/projects/${featured.slug}/">
-      <div class="spotlight-body">
-        <span class="badge-cat badge-note">${escapeHtml(featured.data.status || '项目')}</span>
-        <h3>${escapeHtml(featured.data.title)}</h3>
-        <p>${escapeHtml(featured.data.description || '')}</p>
-        <div class="tags">${(featured.data.tags || []).map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-        <span class="sl-link">查看项目 →</span>
-      </div>
-      <div class="spotlight-art"><div class="robot">🤖</div></div>
-    </a></section>` : ''}
-
-  ${latest.length ? `<section class="section">
-    <div class="section-head"><h2>📝 最新笔记</h2><a class="more" href="/blog/">全部 →</a></div>
-    <div class="grid">${latest.map(postCard).join('')}</div>
-  </section>` : ''}
-
-  ${awards.length ? `<section class="section"><div class="section-head"><h2>🏆 荣誉墙</h2><a class="more" href="/about/">完整履历 →</a></div>
-    <div class="awards-strip">${awards
-      .map(
-        (a) =>
-          `<div class="award-card"><div class="ac-date">${escapeHtml(a.date)}</div><div class="ac-name">${escapeHtml(
-            a.name
-          )}</div>${a.level ? `<div class="ac-lvl">${escapeHtml(a.level)}</div>` : ''}</div>`
-      )
-      .join('')}</div></section>` : ''}
-
-  <section class="section">
-    <div class="section-head"><h2>🧭 笔记分类</h2><a class="more" href="/blog/">去写笔记 →</a></div>
-    <div class="grid cats">${cats
-      .map(
-        ([k, v]) =>
-          `<a class="card cat-card" href="/blog/?cat=${k}"><span class="badge-cat badge-${k}">${escapeHtml(
-            v.label
-          )}</span><h3>${escapeHtml(v.label)}</h3><p class="desc">${escapeHtml(v.desc)}</p></a>`
-      )
-      .join('')}</div>
-  </section>`;
-  
-  return layout({ 
-    title: '', 
-    description: '', 
-    active: '/', 
-    body, 
+  return layout({
+    title: '',
+    description: '',
+    active: '/',
+    body,
     jsonLd,
     canonical: config.site.url + '/'
   });
@@ -702,7 +705,8 @@ function blogIndex() {
   }));
 
   const body = `
-  <section style="margin-top:28px"><h1 style="font-size:26px;margin:0 0 4px">学习笔记</h1><p style="color:var(--text-mute);margin:0 0 16px">bug 是怎么解决的、技术是怎么学起来的 —— 都记在这里。</p>
+  <section class="rx-blog-index" style="margin-top:28px"><h1 style="font-size:26px;margin:0 0 4px">学习笔记</h1><p style="color:var(--text-mute);margin:0 0 16px">bug 是怎么解决的、技术是怎么学起来的 —— 都记在这里。</p>
+  <div class="rx-filter-bar">
   <div id="filters" role="group" aria-label="筛选选项">
     <button data-filter="all" class="active" role="button" aria-pressed="true">全部</button>
     ${Object.entries(config.categories)
@@ -710,9 +714,10 @@ function blogIndex() {
       .join('')}
     <button data-filter="clear" role="button" style="margin-left:auto">清除筛选</button>
   </div>
-  ${allTags.length ? `<div class="share" style="margin-top:10px" role="group" aria-label="标签筛选">${allTags.map((t) => `<a class="tag tag-filter" href="/blog/?tag=${encodeURIComponent(t)}" role="button" aria-pressed="false" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</a>`).join('')}</div>` : ''}
-  <div role="status" aria-live="polite" id="filter-result" class="sr-only"></div>
-  <div class="grid" id="post-grid" style="margin-top:18px">${posts.map(postCard).join('')}</div>
+  ${allTags.length ? `<div class="share rx-tag-filter" role="group" aria-label="标签筛选">${allTags.map((t) => `<a class="tag tag-filter" href="/blog/?tag=${encodeURIComponent(t)}" role="button" aria-pressed="false" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</a>`).join('')}</div>` : ''}
+  <div role="status" aria-live="polite" id="filter-result" class="rx-filter-count">共 ${posts.length} 篇笔记</div>
+  </div>
+  <div class="grid rx-grid" id="post-grid" style="margin-top:18px">${posts.map((p) => renderPostCard(p)).join('')}</div>
   <div id="empty-state" style="display:none;text-align:center;padding:40px 20px;color:var(--text-mute);"><p>没有找到符合条件的文章</p><a href="/blog/" class="btn btn-outline" style="margin-top:12px;display:inline-flex;">清除筛选</a></div></section>
   <script>
   (function(){
@@ -870,7 +875,7 @@ function postPage(p, prev, next) {
   const tags = (d.tags || [])
     .map((t) => `<a class="tag" href="/blog/?tag=${encodeURIComponent(t)}">#${escapeHtml(t)}</a>`)
     .join('');
-    
+
   const breadcrumbJsonLd = generateJsonLd('breadcrumb', {
     items: [
       { name: '首页', url: config.site.url + '/' },
@@ -878,18 +883,18 @@ function postPage(p, prev, next) {
       { name: d.title, url: pageUrl }
     ]
   });
-  
+
   const blogPostJsonLd = generateJsonLd('blogpost', {
     ...d,
     url: pageUrl
   });
-  
+
   const jsonLd = [blogPostJsonLd, breadcrumbJsonLd].filter(Boolean);
+  const metaHtml = PostMeta({ post: p });
+  const relatedHtml = RelatedPosts({ currentSlug: p.slug, posts, limit: 3 });
 
   const body = `
-  <article style="margin-top:24px"><div class="post-head"><div class="post-meta"><span class="badge-cat badge-${d.category}">${escapeHtml(cat.label)}</span><span>${fmt(d.pubDate)}${
-    d.updatedDate ? `<span>更新于 ${fmt(d.updatedDate)}</span>` : ''
-  }</span></div><h1>${escapeHtml(d.title)}</h1><p style="color:var(--text-soft);margin:6px 0 0">${escapeHtml(d.description || '')}</p>${
+  <article class="rx-article" style="margin-top:24px"><div class="post-head">${metaHtml}<h1>${escapeHtml(d.title)}</h1><p style="color:var(--text-soft);margin:6px 0 0">${escapeHtml(d.description || '')}</p>${
     tags ? `<div class="post-meta" style="margin-top:10px">${tags}</div>` : ''
   }</div><div class="prose">${p.html}</div>${shareHtml(d.title, pageUrl)}<nav class="pager">${
     prev
@@ -899,13 +904,13 @@ function postPage(p, prev, next) {
     next
       ? `<a href="/blog/${next.slug}/" style="text-align:right"><div class="label">下一篇 →</div><div class="ttl">${escapeHtml(next.data.title)}</div></a>`
       : '<span></span>'
-  }</nav>${commentHtml()}</article>`;
-  
-  return layout({ 
-    title: d.title, 
-    description: d.description, 
-    active: '/blog/', 
-    body, 
+  }</nav>${relatedHtml}${commentHtml()}</article>`;
+
+  return layout({
+    title: d.title,
+    description: d.description,
+    active: '/blog/',
+    body,
     jsonLd,
     type: 'article',
     pageUrl: `/blog/${p.slug}/`,

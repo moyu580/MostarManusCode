@@ -370,6 +370,9 @@ describe('Generated output and deployment configuration', () => {
     }
 
     const homeHtml = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
+    assert.match(homeHtml, /<script src="\/agent-widget\.js" defer><\/script>/);
+    assert.ok(fs.existsSync(path.join(DIST, 'agent-widget.js')), 'AI assistant widget must be published');
+    assert.ok(fs.existsSync(path.join(DIST, 'agent-avatar.png')), 'AI assistant avatar must be published');
     for (const category of ['debug', 'learn', 'insight']) {
       assert.match(
         homeHtml,

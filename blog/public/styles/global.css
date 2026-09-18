@@ -2271,3 +2271,835 @@ html.dark .btn-primary {
     outline-offset: 2px;
   }
 }
+
+/* ============================================
+   REACT FX — 双主题特效层
+   规则: 只使用 :root / html.dark 已有变量,
+   禁止死色强制主题。
+   ============================================ */
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: var(--shadow-glow);
+  border-radius: var(--radius-xs);
+}
+
+/* Section head 细线 + 微光 */
+.rx-sh-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.rx-sh-bar {
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: rxBarPulse 2.6s ease-in-out infinite;
+}
+
+@keyframes rxBarPulse {
+  0%, 100% { box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 30%, transparent); }
+  50% { box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 55%, transparent); }
+}
+
+.rx-sh h2 {
+  margin: 0;
+}
+
+.section .more {
+  transition: color var(--duration-fast) ease, text-shadow var(--duration-fast) ease;
+}
+
+.section .more:hover {
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* Hero 氛围 — 跟随主题 accent，缓慢流动 */
+.rx-hero {
+  position: relative;
+}
+
+.rx-hero-aura {
+  position: absolute;
+  inset: -20% -8% auto;
+  height: 520px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 52% 48% at 22% 0%, var(--accent-soft) 0%, transparent 68%),
+    radial-gradient(ellipse 40% 40% at 82% 16%, var(--accent-soft) 0%, transparent 70%);
+  mask-image: linear-gradient(180deg, #000 35%, transparent 100%);
+  animation: rxAura 8s ease-in-out infinite alternate;
+}
+
+@keyframes rxAura {
+  from { opacity: 0.7; transform: translateX(0) scale(1); }
+  to { opacity: 1; transform: translateX(12px) scale(1.03); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rx-hero-aura,
+  .rx-sh-bar { animation: none; }
+}
+
+.rx-hero .hero-grid {
+  position: relative;
+  z-index: 1;
+}
+
+.grad {
+  background-size: 200% 200%;
+}
+
+.rx-stats .stat b {
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(120deg, var(--text), var(--accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.rx-stats .stat {
+  transition: transform var(--duration-normal) var(--ease-out-expo);
+}
+
+.rx-stats .stat:hover {
+  transform: translateY(-2px);
+}
+
+/* Profile card — 变量驱动 + 顶栏流光 */
+.rx-profile {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 28px 26px;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) ease,
+    border-color var(--duration-normal) ease;
+}
+
+.rx-profile::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--accent),
+    var(--accent-2),
+    var(--accent-3),
+    var(--accent)
+  );
+  background-size: 200% 100%;
+  animation: rxSlide 3.5s linear infinite;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+@keyframes rxSlide {
+  from { background-position: 0% 50%; }
+  to { background-position: 200% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rx-profile::before { animation: none; }
+}
+
+.rx-profile:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+}
+
+.rxp-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.rxp-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.rxp-avatar {
+  width: 76px;
+  height: 76px;
+  border-radius: 22px;
+  object-fit: cover;
+  border: 2px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  box-shadow: var(--shadow), 0 0 16px color-mix(in srgb, var(--accent) 18%, transparent);
+  display: block;
+  background: var(--bg-hover);
+  transition: transform var(--duration-normal) var(--ease-out-back), box-shadow var(--duration-normal) ease;
+}
+
+.rx-profile:hover .rxp-avatar {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-md), 0 0 22px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.rxp-status-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--success);
+  border: 2px solid var(--bg-elev);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 45%, transparent);
+  animation: rxPulse 2.4s ease-out infinite;
+}
+
+.rxp-status-dot[data-state="checking"] {
+  background: var(--text-mute);
+  animation: none;
+  box-shadow: none;
+}
+
+.rxp-status-dot[data-state="offline"] {
+  background: var(--warn);
+  animation: none;
+  box-shadow: none;
+}
+
+@keyframes rxPulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 50%, transparent); }
+  70% { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rxp-status-dot { animation: none; }
+}
+
+.rxp-name {
+  font-family: var(--font-serif);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.rxp-role {
+  color: var(--text-mute);
+  font-size: 13.5px;
+  margin-top: 4px;
+}
+
+.rxp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--success);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+.rxp-status[data-state="checking"] {
+  color: var(--text-mute);
+  text-shadow: none;
+}
+
+.rxp-status[data-state="offline"] {
+  color: var(--warn);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--warn) 35%, transparent);
+}
+
+.rxp-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  display: inline-block;
+  box-shadow: 0 0 8px var(--success);
+}
+
+.rxp-status[data-state="checking"] i {
+  background: var(--text-mute);
+  box-shadow: none;
+}
+
+.rxp-status[data-state="offline"] i {
+  background: var(--warn);
+  box-shadow: 0 0 8px var(--warn);
+}
+
+.rxp-rows {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.rxp-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.rxp-k {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mute);
+  flex-shrink: 0;
+}
+
+.rxp-v {
+  font-size: 13px;
+  color: var(--text-soft);
+  text-align: right;
+  line-height: 1.4;
+}
+
+.rxp-tags {
+  justify-content: flex-start;
+}
+
+.rxp-tags .tag {
+  transition:
+    transform var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.rxp-tags .tag:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.rxp-toggle {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rxp-toggle::after {
+  content: "⌄";
+  font-size: 18px;
+  line-height: 1;
+  transition: transform var(--duration-fast) ease;
+}
+
+.rx-profile-details-open .rxp-toggle::after {
+  transform: rotate(180deg);
+}
+
+/* Project stack art — 微亮荧光 + 流动箭头 */
+.rx-spotlight {
+  transition:
+    transform var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) ease,
+    border-color var(--duration-normal) ease;
+}
+
+.rx-spotlight:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+  text-decoration: none;
+}
+
+.rx-spotlight:hover h3 { color: var(--accent); }
+
+.rx-stack-art {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2px;
+  padding: 28px 24px;
+  min-height: 240px;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 55%),
+    var(--bg-hover);
+  border-left: 1px solid var(--border);
+}
+
+.rx-stack-art::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 8%, transparent), transparent);
+  transform: translateX(-100%);
+  animation: rxScan 4.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes rxScan {
+  0%, 100% { transform: translateX(-100%); opacity: 0; }
+  40% { opacity: 1; }
+  60% { opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+/* 四层常亮异色荧光：各用一种主题色，持续发光、不闪烁 */
+.rxsa-layer {
+  position: relative;
+  z-index: 1;
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    transform var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) ease,
+    filter var(--duration-normal) ease;
+}
+
+/* 1 · LLM Agent — 赭红常亮 */
+.rxsa-1 {
+  border: 1px solid color-mix(in srgb, var(--accent) 80%, var(--border));
+  color: var(--accent);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--accent) 28%, var(--bg-elev)),
+      color-mix(in srgb, var(--accent) 14%, var(--bg-elev)));
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 0 36px color-mix(in srgb, var(--accent) 22%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* 2 · OpenClaw — 琥珀常亮 */
+.rxsa-2 {
+  border: 1px solid color-mix(in srgb, var(--accent-2) 80%, var(--border));
+  color: var(--accent-2);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--accent-2) 26%, var(--bg-elev)),
+      color-mix(in srgb, var(--accent-2) 12%, var(--bg-elev)));
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--accent-2) 55%, transparent),
+    0 0 36px color-mix(in srgb, var(--accent-2) 22%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--accent-2) 18%, transparent);
+}
+
+/* 3 · ROS 2 — 青绿常亮（此前漏发光，已补上） */
+.rxsa-3 {
+  border: 1px solid color-mix(in srgb, var(--accent-3) 80%, var(--border));
+  color: var(--accent-3);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--accent-3) 26%, var(--bg-elev)),
+      color-mix(in srgb, var(--accent-3) 12%, var(--bg-elev)));
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--accent-3) 55%, transparent),
+    0 0 36px color-mix(in srgb, var(--accent-3) 22%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--accent-3) 18%, transparent);
+}
+
+/* 4 · Jetson — 成功绿常亮 */
+.rxsa-4 {
+  border: 1px solid color-mix(in srgb, var(--success) 80%, var(--border));
+  color: var(--success);
+  background:
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--success) 26%, var(--bg-elev)),
+      color-mix(in srgb, var(--success) 12%, var(--bg-elev)));
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--success) 55%, transparent),
+    0 0 36px color-mix(in srgb, var(--success) 22%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.rx-spotlight:hover .rxsa-layer {
+  transform: translateX(4px);
+  filter: brightness(1.08);
+}
+
+.rx-spotlight:hover .rxsa-1 {
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--accent) 70%, transparent),
+    0 0 44px color-mix(in srgb, var(--accent) 28%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.rx-spotlight:hover .rxsa-2 {
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--accent-2) 70%, transparent),
+    0 0 44px color-mix(in srgb, var(--accent-2) 28%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--accent-2) 22%, transparent);
+}
+
+.rx-spotlight:hover .rxsa-3 {
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--accent-3) 70%, transparent),
+    0 0 44px color-mix(in srgb, var(--accent-3) 28%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--accent-3) 22%, transparent);
+}
+
+.rx-spotlight:hover .rxsa-4 {
+  box-shadow:
+    0 0 22px color-mix(in srgb, var(--success) 70%, transparent),
+    0 0 44px color-mix(in srgb, var(--success) 28%, transparent),
+    inset 0 0 22px color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+/* 箭头常亮：红→琥珀→青绿→绿 与对应层衔接，无闪烁 */
+.rxsa-arrow {
+  width: 2px;
+  height: 14px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+  border-radius: 2px;
+  overflow: visible;
+}
+
+/* 箭头1：红→琥珀（Agent→OpenClaw） */
+.rxsa-arrow:nth-of-type(1) {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent) 70%, transparent),
+    color-mix(in srgb, var(--accent-2) 70%, transparent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* 箭头2：琥珀→青绿（OpenClaw→ROS2） */
+.rxsa-arrow:nth-of-type(2) {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent-2) 70%, transparent),
+    color-mix(in srgb, var(--accent-3) 70%, transparent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent-3) 40%, transparent);
+}
+
+/* 箭头3：青绿→绿（ROS2→Jetson） */
+.rxsa-arrow:nth-of-type(3) {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent-3) 70%, transparent),
+    color-mix(in srgb, var(--success) 70%, transparent));
+  box-shadow: 0 0 8px color-mix(in srgb, var(--success) 40%, transparent);
+}
+
+.rxsa-arrow:nth-of-type(4) {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--accent-3) 70%, transparent),
+    color-mix(in srgb, var(--success) 70%, transparent));
+}
+
+.rxsa-arrow::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+.rxsa-arrow:nth-of-type(2)::before {
+  background: var(--accent-2);
+  box-shadow: 0 0 6px var(--accent-2);
+}
+
+.rxsa-arrow:nth-of-type(3)::before {
+  background: var(--accent-3);
+  box-shadow: 0 0 6px var(--accent-3);
+}
+
+.rxsa-arrow::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid color-mix(in srgb, var(--accent-2) 70%, transparent);
+}
+
+.rxsa-arrow:nth-of-type(2)::after {
+  border-top-color: color-mix(in srgb, var(--accent-3) 70%, transparent);
+}
+
+.rxsa-arrow:nth-of-type(3)::after {
+  border-top-color: color-mix(in srgb, var(--success) 70%, transparent);
+}
+
+/* Cards — 分类色顶边 + 发光 */
+.rx-card {
+  isolation: isolate;
+}
+
+.rx-card::before {
+  opacity: 0.55;
+  transition: opacity var(--duration-normal) ease;
+}
+
+.rx-card[data-cat="debug"]::before {
+  background: linear-gradient(90deg, var(--cat-debug-text), transparent);
+}
+
+.rx-card[data-cat="learn"]::before {
+  background: linear-gradient(90deg, var(--cat-learn-text), transparent);
+}
+
+.rx-card[data-cat="insight"]::before {
+  background: linear-gradient(90deg, var(--cat-insight-text), transparent);
+}
+
+.rx-card:hover::before { opacity: 1; }
+
+.rx-card[data-cat="debug"]:hover {
+  box-shadow: var(--shadow-lg), 0 0 24px color-mix(in srgb, var(--cat-debug-text) 18%, transparent);
+  border-color: color-mix(in srgb, var(--cat-debug-text) 30%, var(--border));
+}
+
+.rx-card[data-cat="learn"]:hover {
+  box-shadow: var(--shadow-lg), 0 0 24px color-mix(in srgb, var(--cat-learn-text) 18%, transparent);
+  border-color: color-mix(in srgb, var(--cat-learn-text) 30%, var(--border));
+}
+
+.rx-card[data-cat="insight"]:hover {
+  box-shadow: var(--shadow-lg), 0 0 24px color-mix(in srgb, var(--cat-insight-text) 18%, transparent);
+  border-color: color-mix(in srgb, var(--cat-insight-text) 30%, var(--border));
+}
+
+.rx-card h2 {
+  font-family: var(--font-serif);
+  letter-spacing: -0.015em;
+  line-height: 1.4;
+  margin: 0;
+  font-size: 17.5px;
+  color: var(--text);
+  transition: color var(--duration-fast) ease;
+}
+
+.rx-card:hover h2 { color: var(--accent); }
+
+.rx-award {
+  transition: transform var(--duration-normal) var(--ease-out-expo), box-shadow var(--duration-normal) ease;
+}
+
+.rx-award:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+}
+
+/* Buttons — 更细腻的层次 + 微光 */
+.btn-primary {
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #fff 12%, transparent) inset,
+    0 6px 20px var(--accent-glow);
+  animation: rxBtnGlow 3s ease-in-out infinite;
+}
+
+@keyframes rxBtnGlow {
+  0%, 100% {
+    box-shadow:
+      0 1px 0 color-mix(in srgb, #fff 12%, transparent) inset,
+      0 6px 18px var(--accent-glow);
+  }
+  50% {
+    box-shadow:
+      0 1px 0 color-mix(in srgb, #fff 16%, transparent) inset,
+      0 8px 28px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary { animation: none; }
+}
+
+.btn-primary:hover {
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #fff 16%, transparent) inset,
+    0 10px 28px color-mix(in srgb, var(--accent) 40%, transparent);
+  animation: none;
+}
+
+.btn-outline:hover {
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.rx-cat {
+  transition:
+    transform var(--duration-normal) var(--ease-out-expo),
+    box-shadow var(--duration-normal) ease,
+    border-color var(--duration-normal) ease;
+}
+
+.rx-cat:hover {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+}
+
+/* Responsive */
+@media (max-width: 860px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 28px; }
+  .rx-spotlight { grid-template-columns: 1fr; }
+  .rx-stack-art {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    min-height: 200px;
+  }
+  .rx-profile { max-width: 420px; }
+}
+
+@media (max-width: 480px) {
+  .rxp-avatar { width: 64px; height: 64px; border-radius: 18px; }
+  .rxp-name { font-size: 18px; }
+  .rx-profile { padding: 16px 18px; }
+  .rxp-top { margin-bottom: 0; }
+  .rxp-status { margin-top: 5px; }
+  .rxp-toggle { display: flex; margin-top: 14px; }
+  .rxp-details { display: none; }
+  .rx-profile-details-open .rxp-details { display: block; }
+  .rx-profile-details-open .rxp-toggle { margin-bottom: 2px; }
+  .rxp-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .rxp-v { text-align: left; }
+}
+
+/* color-mix 回退：不支持时仍保持可读 */
+@supports not (background: color-mix(in srgb, #000 10%, #fff)) {
+  .rxsa-1 { background: var(--accent-soft); }
+  .rxsa-2 { background: var(--bg-elev); color: var(--accent-2); }
+  .rxsa-3 { background: var(--bg-elev); color: var(--accent-3); }
+  .rxsa-4 { background: var(--bg-elev); color: var(--success); }
+  .rxp-status-dot { animation: none; }
+}
+
+/* ============================================
+   React small UX — 参考 fuwari / morethan-log
+   阅读时长 · 相关笔记 · 粘性筛选
+   ============================================ */
+
+.rx-card-meta-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.rx-read {
+  color: var(--text-mute);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rx-read::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-mute);
+  margin-right: 8px;
+  vertical-align: middle;
+  opacity: 0.7;
+}
+
+.rx-post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-mute);
+  font-size: 13.5px;
+}
+
+.rx-post-meta .rx-read::before { background: var(--accent); opacity: 0.85; }
+
+.rx-updated { color: var(--text-mute); }
+
+.rx-related {
+  margin-top: 48px;
+  padding-top: 8px;
+}
+
+.rx-related-grid { margin-top: 8px; }
+.rx-related .card h2 { font-size: 16px; }
+
+.rx-filter-bar {
+  position: sticky;
+  top: 64px;
+  z-index: 40;
+  margin: 0 -8px 4px;
+  padding: 10px 8px 8px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border-bottom: 1px solid var(--border);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+html.dark .rx-filter-bar {
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+}
+
+.rx-filter-bar #filters { margin-bottom: 0; }
+.rx-tag-filter { margin-top: 8px !important; }
+
+.rx-filter-count {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+  display: block;
+}
+
+#filters button:focus-visible,
+.tag-filter:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-glow);
+  border-color: var(--accent);
+}
+
+@media (max-width: 768px) {
+  .rx-filter-bar {
+    top: 63px;
+    margin: 0 -12px 4px;
+    padding: 8px 12px;
+  }
+  .rx-filter-bar #filters { flex-wrap: wrap; }
+  .rx-filter-bar #filters button[data-filter="clear"] { margin-left: 0; }
+  .rx-card-meta-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

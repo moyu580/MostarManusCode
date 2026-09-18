@@ -10,6 +10,9 @@
 - RSS、Sitemap、Robots 和 Open Graph 元数据
 - 文章目录、上一篇/下一篇导航和安全的内部链接处理
 - Caddy/Nginx 静态托管友好，生成结果不依赖运行时 Node.js
+- React 19 SSR 组件化首页与文章卡片，不向浏览器发送 React runtime
+- 同域 AI 悬浮助手，连接 `/api/chat/stream`，支持移动端全屏对话
+- 首页 Agent 健康状态、移动端个人卡片折叠和 reduced-motion 兼容
 
 ## 本地开发
 
@@ -22,6 +25,8 @@ npm run serve
 
 默认预览地址为 `http://localhost:4321`。文章位于 `src/content/blog/`，项目页位于 `src/content/projects/`，公共资源位于 `public/`。
 
+React 组件位于 `src/ui/`，通过 `react-dom/server` 输出静态 HTML。`public/agent-widget.js` 和 `public/agent-avatar.png` 是博客助手的公开前端资源；它们不包含模型密钥。
+
 ## 与 Agent 联调
 
 博客本身是静态站点，不直接保存模型密钥。需要 Agent 能力时，前端通过同域 `/api` 请求 Spring Boot 服务；开发环境可在 `frontend/` 中使用 Vite 代理，生产环境由 Caddy/Nginx 反向代理。
@@ -33,3 +38,12 @@ npm run build
 ```
 
 将 `dist-build/` 作为静态站点根目录部署即可。完整服务器流程见 [`../docs/deploy-server.md`](../docs/deploy-server.md)。
+
+发布前建议执行：
+
+```powershell
+npm ci
+npm run check
+```
+
+`npm run check` 会运行 59 项构建与内容测试，并确认 AI 助手脚本和头像资源进入构建产物。
