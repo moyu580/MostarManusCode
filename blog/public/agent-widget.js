@@ -1,7 +1,8 @@
 /*!
- * MostarManus 悬浮助手 v6 — 博客嵌入式聊天组件(移动端优先)
+ * MostarManus 悬浮助手 v9 — 博客嵌入式聊天组件(移动端优先)
  * 零依赖;对接 POST /api/chat/stream (SSE: chatId/message/done/error)
  * 配色取自站点 CSS 变量,自动适配明暗主题;≤640px 全屏对话页。
+ * v9:修复 SSE 完成态/CRLF、流式渲染抖动与常见 Markdown 错排。
  */
 (function () {
   "use strict";
@@ -35,56 +36,102 @@
             .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
   function renderInline(s) {
-    return s
-      .replace(/`([^`]+)`/g, "<code class=\"mmw-code\">$1</code>")
+    var code = [];
+    var rendered = s
+      .replace(/`([^`\n]+)`/g, function (_, value) {
+        code.push(value);
+        return "\u0000" + (code.length - 1) + "\u0000";
+      })
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, "<a href=\"$2\" target=\"_blank\" rel=\"noopener\">$1</a>");
+    return rendered.replace(/\u0000(\d+)\u0000/g, function (_, index) {
+      return "<code class=\"mmw-code\">" + code[Number(index)] + "</code>";
+    });
   }
   function renderMarkdown(src) {
     var escaped = escapeHtml(src == null ? "" : String(src));
     var out = [];
     var inCode = false, codeBuf = [];
     var listBuf = null;
+    var paragraphBuf = [];
 
     function closeList() {
       if (listBuf) { out.push("</" + listBuf + ">"); listBuf = null; }
     }
-    function listOpen(type, items) {
-      if (listBuf !== type) { closeList(); listBuf = type; out.push("<" + type + ">"); }
+    function closeParagraph() {
+      if (paragraphBuf.length) {
+        out.push("<p>" + renderInline(paragraphBuf.join(" ")) + "</p>");
+        paragraphBuf = [];
+      }
+    }
+    function closeFlow() { closeParagraph(); closeList(); }
+    function listOpen(type, items, start) {
+      closeParagraph();
+      if (listBuf !== type) {
+        closeList(); listBuf = type;
+        out.push(type === "ol" && start !== 1 ? "<ol start=\"" + start + "\">" : "<" + type + ">");
+      }
       out.push("<li>" + renderInline(items) + "</li>");
+    }
+    function tableCells(line) {
+      return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(function (cell) { return cell.trim(); });
+    }
+    function isTableSeparator(line) {
+      var cells = tableCells(line);
+      return cells.length > 1 && cells.every(function (cell) { return /^:?-{3,}:?$/.test(cell); });
     }
 
     var lines = escaped.split("\n");
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
-      var fence = line.match(/^```(\w*)\s*$/);
+      var fence = line.match(/^```([^`]*)$/);
       if (fence) {
         if (inCode) {
           out.push("<pre class=\"mmw-pre\"><code>" + codeBuf.join("\n") + "</code></pre>");
           inCode = false; codeBuf = [];
         } else {
-          closeList(); inCode = true;
+          closeFlow(); inCode = true;
         }
         continue;
       }
       if (inCode) { codeBuf.push(line); continue; }
 
       var h = line.match(/^(#{1,4})\s+(.*)$/);
-      if (h) { closeList(); out.push("<div class=\"mmw-h\">" + renderInline(h[2]) + "</div>"); continue; }
+      if (h) { closeFlow(); out.push("<div class=\"mmw-h\">" + renderInline(h[2]) + "</div>"); continue; }
+
+      if (i + 1 < lines.length && line.indexOf("|") !== -1 && isTableSeparator(lines[i + 1])) {
+        closeFlow();
+        out.push("<div class=\"mmw-table-wrap\"><table><thead><tr>" + tableCells(line).map(function (cell) {
+          return "<th>" + renderInline(cell) + "</th>";
+        }).join("") + "</tr></thead><tbody>");
+        i += 2;
+        while (i < lines.length && lines[i].trim() && lines[i].indexOf("|") !== -1) {
+          out.push("<tr>" + tableCells(lines[i]).map(function (cell) {
+            return "<td>" + renderInline(cell) + "</td>";
+          }).join("") + "</tr>");
+          i++;
+        }
+        out.push("</tbody></table></div>");
+        i--;
+        continue;
+      }
 
       var ul = line.match(/^\s*[-*]\s+(.*)$/);
       if (ul) { listOpen("ul", ul[1]); continue; }
-      var ol = line.match(/^\s*\d+[.、]\s+(.*)$/);
-      if (ol) { listOpen("ol", ol[1]); continue; }
+      var ol = line.match(/^\s*(\d+)[.、]\s+(.*)$/);
+      if (ol) { listOpen("ol", ol[2], Number(ol[1])); continue; }
 
-      if (/^\s*$/.test(line)) { closeList(); continue; }
+      var quote = line.match(/^\s*&gt;\s?(.*)$/);
+      if (quote) { closeFlow(); out.push("<blockquote>" + renderInline(quote[1]) + "</blockquote>"); continue; }
+
+      if (/^\s*$/.test(line)) { closeFlow(); continue; }
       closeList();
-      out.push("<p>" + renderInline(line) + "</p>");
+      paragraphBuf.push(line.trim());
     }
-    if (inCode && codeBuf.length) {
+    if (inCode) {
       out.push("<pre class=\"mmw-pre\"><code>" + codeBuf.join("\n") + "</code></pre>");
     }
-    closeList();
+    closeFlow();
     return out.join("");
   }
 
@@ -124,8 +171,8 @@
     ".mmw-close{background:none;border:none;cursor:pointer;color:var(--text-mute,#7a7068);padding:7px;border-radius:10px;line-height:0;flex:none}",
     ".mmw-close:hover{color:var(--text,#2c2825);background:var(--bg-hover,#f5f2ed)}",
 
-    /* 消息行:头像 + 气泡 */
-    ".mmw-row{display:flex;gap:9px;align-items:flex-end}",
+    /* 消息行:头像在气泡旁、顶部对齐(QQ 式) */
+    ".mmw-row{display:flex;gap:9px;align-items:flex-start}",
     ".mmw-row.mmw-user{flex-direction:row-reverse}",
     ".mmw-avatar{width:30px;height:30px;border-radius:50%;flex:none;box-shadow:0 1px 3px rgba(0,0,0,.12)}",
     ".mmw-av-bot{background-color:var(--bg-elev,#fff);background-image:url(" + AVATAR_URL + ");background-size:cover;background-position:center}",
@@ -135,7 +182,7 @@
 
     /* 消息区 */
     ".mmw-msgs{flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;",
-      "padding:16px 14px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;scrollbar-color:var(--border,rgba(0,0,0,.15)) transparent}",
+      "padding:16px 14px;display:flex;flex-direction:column;gap:14px;scrollbar-width:thin;scrollbar-color:var(--border,rgba(0,0,0,.15)) transparent}",
     ".mmw-msgs::-webkit-scrollbar{width:5px}",
     ".mmw-msgs::-webkit-scrollbar-thumb{background:var(--border,rgba(0,0,0,.15));border-radius:4px}",
     ".mmw-msg{max-width:80%;padding:10px 14px;border-radius:16px;font-size:14.5px;line-height:1.7;word-break:break-word;overflow-wrap:anywhere;min-width:0}",
@@ -146,13 +193,19 @@
     ".mmw-msg .mmw-code{background:var(--bg-code,#1a1a2e);color:#e8e6f0;border-radius:5px;padding:1px 6px;font-size:.85em;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}",
     ".mmw-msg .mmw-pre{background:var(--bg-code,#1a1a2e);color:#e8e6f0;border-radius:12px;padding:12px 14px;overflow-x:auto;margin:7px 0;font-size:12.5px;line-height:1.6}",
     ".mmw-msg .mmw-pre code{background:none;padding:0;color:inherit;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}",
+    ".mmw-msg blockquote{border-left:3px solid var(--accent,#b23a26);padding-left:10px;color:var(--text-mute,#7a7068);margin:7px 0}",
+    ".mmw-table-wrap{max-width:100%;overflow-x:auto;margin:7px 0}",
+    ".mmw-msg table{border-collapse:collapse;min-width:100%;font-size:.9em}",
+    ".mmw-msg th,.mmw-msg td{border:1px solid var(--border,rgba(128,128,128,.28));padding:5px 8px;text-align:left;white-space:nowrap}",
+    ".mmw-msg th{background:var(--bg-soft,#fff);font-weight:650}",
+    ".mmw-err{margin-top:7px;color:var(--text-mute,#7a7068);font-size:12px;word-break:break-all}",
     ".mmw-msg a{color:var(--accent,#b23a26);text-underline-offset:2px}",
-    ".mmw-row.mmw-user .mmw-msg{align-self:flex-end;background:linear-gradient(135deg,var(--accent,#b23a26),var(--accent-hover,#d14a2c));color:#fff;border-bottom-right-radius:5px;box-shadow:0 2px 8px var(--accent-glow,rgba(178,58,38,.25))}",
+    ".mmw-row.mmw-user .mmw-msg{align-self:flex-end;background:linear-gradient(135deg,var(--accent,#b23a26),var(--accent-hover,#d14a2c));color:#fff;border-top-right-radius:5px;box-shadow:0 2px 8px var(--accent-glow,rgba(178,58,38,.25))}",
     ".mmw-row.mmw-user .mmw-msg .mmw-code{background:rgba(255,255,255,.18);color:#fff}",
     ".mmw-row.mmw-user .mmw-msg a{color:#fff}",
     ".mmw-row.mmw-bot .mmw-msg{align-self:flex-start;",
       "background:linear-gradient(rgba(255,255,255,.06),rgba(255,255,255,.06)),var(--bg-hover,#f5f2ed);",
-      "border:1px solid rgba(128,128,128,.28);border-bottom-left-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.08)}",
+      "border:1px solid rgba(128,128,128,.28);border-top-left-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.08)}",
     ".mmw-row.mmw-bot .mmw-msg.streaming::after{content:'▍';opacity:.6;animation:mmw-blink 1s steps(2) infinite;margin-left:1px}",
 
     /* 打字动画(三连点) */
@@ -218,6 +271,10 @@
   function scrollBottom() {
     var m = msgsEl(); m.scrollTop = m.scrollHeight;
   }
+  function isNearBottom() {
+    var m = msgsEl();
+    return m.scrollHeight - m.scrollTop - m.clientHeight < 56;
+  }
   function addMsg(cls, markdown) {
     var row = el("div", "mmw-row " + cls);
     var av;
@@ -281,6 +338,27 @@
 
     state.controller = new AbortController();
     var acc = "";
+    var streamError = "";
+    var finished = false;
+    var renderQueued = false;
+
+    function renderAccumulated(finalRender) {
+      if (!finalRender && renderQueued) return;
+      function render() {
+        renderQueued = false;
+        if (!acc) return;
+        var stickToBottom = isNearBottom();
+        bot.innerHTML = renderMarkdown(acc);
+        bot.classList.toggle("streaming", !finished);
+        if (stickToBottom) scrollBottom();
+      }
+      if (finalRender || typeof requestAnimationFrame !== "function") {
+        render();
+      } else {
+        renderQueued = true;
+        requestAnimationFrame(render);
+      }
+    }
 
     fetch(API_STREAM, {
       method: "POST",
@@ -298,9 +376,14 @@
       var reader = res.body.getReader(), decoder = new TextDecoder(), buf = "";
       function pump() {
         return reader.read().then(function (r) {
-          if (r.done) { finish(); return; }
+          if (r.done) {
+            buf += decoder.decode();
+            if (buf.trim()) handle(parseSse(buf));
+            finish();
+            return;
+          }
           buf += decoder.decode(r.value, { stream: true });
-          var parts = buf.split("\n\n");
+          var parts = buf.split(/\r?\n\r?\n/);
           buf = parts.pop() || "";
           parts.forEach(function (raw) { handle(parseSse(raw)); });
           return pump();
@@ -309,31 +392,37 @@
       return pump();
     }).catch(function (err) {
       if (err && err.name === "AbortError") { finish(); return; }
-      bot.classList.remove("streaming");
-      bot.innerHTML = renderMarkdown("抱歉,连接助手服务时出错了,请稍后再试。");
-      var detail = el("div", "mmw-err", String(err && err.message || err).slice(0, 140));
-      bot.appendChild(detail);
-      state.busy = false;
-      input.disabled = false; sendButton.disabled = false;
-      state.controller = null;
+      streamError = String(err && err.message || err).slice(0, 140);
+      finish();
     });
 
     function handle(ev) {
+      if (finished) return;
       if (ev.event === "chatId" && ev.data) { state.chatId = ev.data; saveChatId(state.chatId); return; }
       if (ev.event === "error") {
-        bot.classList.remove("streaming");
-        bot.innerHTML = renderMarkdown("**出错了:** " + (ev.data || "服务暂时不可用"));
+        streamError = ev.data || "服务暂时不可用";
+        finish();
         return;
       }
+      if (ev.event === "done") { finish(); return; }
       if (ev.event === "message" && ev.data) {
         acc += ev.data;
-        bot.innerHTML = renderMarkdown(acc);
-        scrollBottom();
+        renderAccumulated(false);
       }
     }
     function finish() {
+      if (finished) return;
+      finished = true;
+      renderAccumulated(true);
       bot.classList.remove("streaming");
-      if (!acc.trim() && !bot.innerHTML.trim()) bot.innerHTML = renderMarkdown("(空回复)");
+      if (streamError) {
+        if (!acc.trim()) bot.innerHTML = renderMarkdown("抱歉,连接助手服务时出错了,请稍后再试。");
+        var detail = el("div", "mmw-err");
+        detail.textContent = streamError;
+        bot.appendChild(detail);
+      } else if (!acc.trim()) {
+        bot.innerHTML = renderMarkdown("(空回复)");
+      }
       state.busy = false;
       input.disabled = false; sendButton.disabled = false;
       state.controller = null;
@@ -371,6 +460,7 @@
     panel.appendChild(head);
 
     var msgs = el("div", "mmw-msgs");
+    msgs.setAttribute("aria-live", "polite");
     panel.appendChild(msgs);
 
     var chips = el("div", "mmw-chips");

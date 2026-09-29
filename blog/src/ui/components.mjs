@@ -207,7 +207,6 @@ export function PostCard({ post }) {
       className: `card rx-card`,
       href: `/blog/${post.slug}/`,
       'data-cat': cat,
-      'data-tags': (d.tags || []).join(' '),
     },
     h(
       'div',
@@ -315,6 +314,7 @@ export function PostMeta({ post }) {
 export function renderPostCard(post) {
   return html(h(PostCard, { post }));
 }
+
 export function HomePageBody({ resume, stats, skills, featured, posts, awards, categories }) {
   return html(
     h(

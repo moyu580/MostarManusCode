@@ -4,15 +4,41 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import matter from 'gray-matter';
+import { JSDOM } from 'jsdom';
+import { mountBlog } from '../client/page-effects.mjs';
 import { mdToHtml, escapeHtml, escapeXml } from '../markdown.mjs';
 import {
   filterPosts,
   isValidCategory,
   matchesFilter,
   normalizeFilterState,
-  tagMatchesExact,
 } from '../filters.mjs';
 import { getCompactPaginationItems, parsePaginationJump } from '../pagination.mjs';
+import {
+  buildTermsUrl,
+  filterGlossary,
+  formatTermsCountText,
+  getTermNameMatchRank,
+  groupGlossarySearchResults,
+  matchesGlossaryRelatedContent,
+  normalizeTermsFilterState,
+  parsePageParam,
+  resolveHashTarget,
+  termIdFromHash,
+  termsTotalPages,
+  TERMS_PER_PAGE,
+} from '../terms.mjs';
+import {
+  buildJobsUrl,
+  clampJobsPage,
+  jobsTotalPages,
+  JOBS_PER_PAGE,
+  normalizeJobsTab,
+  pageForIndex,
+  readJobsUrlState,
+  STACK_PER_PAGE,
+  validateJobsData,
+} from '../jobs.mjs';
 
 const ROOT = process.cwd();
 const SRC = path.join(ROOT, 'src');
@@ -194,26 +220,18 @@ describe('Filter helpers', () => {
     { slug: 'learn-pid', data: { category: 'learn', tags: ['PID', '控制理论'] } },
   ];
 
-  it('matches tags exactly and treats an empty filter as no tag filter', () => {
-    assert.equal(tagMatchesExact(['PID', 'ROS2'], 'PI'), false);
-    assert.equal(tagMatchesExact(['PID', 'ROS2'], 'PID'), true);
-    assert.equal(tagMatchesExact([], 'PID'), false);
-    assert.equal(tagMatchesExact(['PID', 'ROS2'], ''), true);
+  it('filters by category and treats an empty category as all posts', () => {
+    assert.deepEqual(filterPosts(posts, 'debug').map((post) => post.slug), ['debug-pid']);
+    assert.deepEqual(filterPosts(posts, 'learn').map((post) => post.slug), ['learn-pid']);
+    assert.deepEqual(filterPosts(posts, '').map((post) => post.slug), posts.map((post) => post.slug));
+    assert.equal(matchesFilter(posts[0], ''), true);
   });
 
-  it('supports category and tag AND filtering', () => {
-    assert.deepEqual(filterPosts(posts, 'debug', 'PID').map((post) => post.slug), ['debug-pid']);
-    assert.deepEqual(filterPosts(posts, 'learn', 'PID').map((post) => post.slug), ['learn-pid']);
-    assert.deepEqual(filterPosts(posts, 'debug', 'LLM'), []);
-    assert.equal(matchesFilter(posts[0], '', ''), true);
-  });
-
-  it('normalizes unknown categories without discarding an unknown tag', () => {
+  it('normalizes unknown categories to the unfiltered state', () => {
     assert.equal(isValidCategory('debug'), true);
     assert.equal(isValidCategory('unknown'), false);
-    assert.deepEqual(normalizeFilterState('unknown', 'not-a-real-tag'), {
+    assert.deepEqual(normalizeFilterState('unknown'), {
       category: '',
-      tag: 'not-a-real-tag',
     });
   });
 });
@@ -256,9 +274,7 @@ describe('Build module helpers', () => {
 
   it('validates and serializes glossary data safely', async () => {
     const {
-      filterGlossary,
       isSafeInternalPath,
-      normalizeTermsFilterState,
       safeJsonForScript,
       validateGlossary,
     } = await import('../build.mjs');
@@ -306,7 +322,7 @@ describe('Generated output and deployment configuration', () => {
     fs.mkdirSync(DIST, { recursive: true });
     fs.writeFileSync(staleFile, 'stale output', 'utf8');
 
-    const { buildSite, generateJsonLd, head } = await import('../build.mjs');
+    const { buildSite, createSearchIndex, generateJsonLd, head } = await import('../build.mjs');
     const metadata = head('Example', 'Description', {
       type: 'article',
       pageUrl: '/blog/example/',
@@ -333,6 +349,20 @@ describe('Generated output and deployment configuration', () => {
     assert.equal(fs.existsSync(path.join(DIST, 'styles', 'global.css')), false);
     const hashedCss = fs.readdirSync(path.join(DIST, 'assets')).filter((name) => /^global-[a-f0-9]{12}\.css$/.test(name));
     assert.equal(hashedCss.length, 1, 'only the current hashed stylesheet may be published');
+    const clientAssets = fs.readdirSync(path.join(DIST, 'assets')).filter((name) => /^site-[A-Za-z0-9]+\.js$/.test(name));
+    assert.equal(clientAssets.length, 1, 'one hashed React client bundle must be published');
+    const termsAssets = fs.readdirSync(path.join(DIST, 'assets')).filter((name) => /^terms-[A-Za-z0-9]+\.js$/.test(name));
+    assert.equal(termsAssets.length, 1, 'one hashed terms explorer bundle must be published');
+    const sharedChunks = fs.readdirSync(path.join(DIST, 'assets')).filter((name) => /^chunk-[A-Za-z0-9]+\.js$/.test(name));
+    assert.ok(sharedChunks.length >= 1, 'React client entries must share common runtime chunks');
+    const siteBundle = fs.readFileSync(path.join(DIST, 'assets', clientAssets[0]), 'utf8');
+    const termsBundle = fs.readFileSync(path.join(DIST, 'assets', termsAssets[0]), 'utf8');
+    assert.ok(sharedChunks.some((chunk) => siteBundle.includes(`./${chunk}`) && termsBundle.includes(`./${chunk}`)),
+      'site and terms must import the same shared runtime chunk');
+    const searchIndex = JSON.parse(fs.readFileSync(path.join(DIST, 'search-index.json'), 'utf8'));
+    assert.ok(searchIndex.some((item) => item.type === 'post' && item.href === '/blog/voice-link-constrained-motion/'));
+    assert.ok(searchIndex.some((item) => item.type === 'term' && item.href === '/terms/#ros2'));
+    assert.deepEqual(createSearchIndex(), searchIndex, 'published search index must match build data');
 
     const pages = [
       path.join(DIST, 'index.html'),
@@ -368,6 +398,15 @@ describe('Generated output and deployment configuration', () => {
     } else {
       assert.match(blogIndexHtml, /暂无公开笔记/);
     }
+    assert.deepEqual(
+      [...blogIndexHtml.matchAll(/data-filter="([^"]+)"/g)].map((match) => match[1]),
+      ['debug', 'learn', 'insight'],
+      '博客页只应提供三个分类筛选按钮',
+    );
+    assert.doesNotMatch(blogIndexHtml, /data-filter="(?:all|clear)"/);
+    assert.doesNotMatch(blogIndexHtml, /rx-tag-filter|data-tags?=|\/blog\/\?tag=/);
+    assert.match(blogIndexHtml, /<details class="rx-filter-more">/);
+    assert.match(blogIndexHtml, /<p>暂无更多筛选<\/p>/);
 
     const homeHtml = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
     assert.match(homeHtml, /<script src="\/agent-widget\.js" defer><\/script>/);
@@ -384,6 +423,13 @@ describe('Generated output and deployment configuration', () => {
     const projectArchitectureHtml = fs.readFileSync(path.join(DIST, 'projects', 'robot-car', 'index.html'), 'utf8');
     assert.match(projectArchitectureHtml, /class="architecture"/);
     assert.doesNotMatch(projectArchitectureHtml, /class="language-architecture"/);
+    const articleHtml = fs.readFileSync(path.join(DIST, 'blog', 'voice-link-constrained-motion', 'index.html'), 'utf8');
+    assert.match(articleHtml, /id="article-navigator-root"/);
+    assert.match(articleHtml, /class="code-block"/);
+    assert.match(articleHtml, /data-copy-code/);
+    assert.match(articleHtml, /<h2 id="1-记录目的"/);
+    assert.match(articleHtml, /<span class="tag">#[^<]+<\/span>/);
+    assert.doesNotMatch(articleHtml, /<a class="tag" href="\/blog\/\?tag=/);
     for (const page of [
       path.join(DIST, 'index.html'),
       path.join(DIST, 'about', 'index.html'),
@@ -412,6 +458,229 @@ describe('Generated output and deployment configuration', () => {
   it('uses an accessible foreground for the dark primary button', () => {
     const css = fs.readFileSync(path.join(ROOT, 'public', 'styles', 'global.css'), 'utf8');
     assert.match(css, /html\.dark \.btn-primary\s*\{[\s\S]*?color: var\(--text-inverse\) !important;/);
+  });
+
+  it('applies the saved theme before CSS and keeps the browser canvas theme-safe', async () => {
+    const { head } = await import('../build.mjs');
+    const html = head('Theme test', 'Theme test', { pageUrl: '/' });
+    const css = fs.readFileSync(path.join(ROOT, 'public', 'styles', 'global.css'), 'utf8');
+    const themeScriptIndex = html.indexOf("localStorage.getItem('theme')");
+    const bootstrapStyleIndex = html.indexOf('id="theme-bootstrap"');
+    const stylesheetIndex = html.indexOf('<link rel="stylesheet"');
+
+    assert.match(html, /<meta name="color-scheme" content="light dark">/);
+    assert.ok(themeScriptIndex >= 0, 'theme bootstrap script must exist');
+    assert.ok(bootstrapStyleIndex > themeScriptIndex, 'critical canvas colors must follow the resolved theme class');
+    assert.ok(stylesheetIndex > bootstrapStyleIndex, 'theme bootstrap must run before the main stylesheet');
+    assert.doesNotMatch(html, /document\.documentElement\.style\.colorScheme/);
+    assert.match(html, /html\{background:#faf8f5;color-scheme:light\}html\.dark\{background:#141210;color-scheme:dark\}/);
+    assert.match(css, /html\s*\{[\s\S]*?background:\s*var\(--bg\);[\s\S]*?color-scheme:\s*light;/);
+    assert.match(css, /html\.dark\s*\{[\s\S]*?background:\s*var\(--bg\);[\s\S]*?color-scheme:\s*dark;/);
+    assert.match(css, /body\s*\{[\s\S]*?min-height:\s*100dvh;/);
+  });
+
+  it('keeps cross-document navigation opaque over a themed canvas', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'public', 'styles', 'global.css'), 'utf8');
+    assert.match(css, /@view-transition\s*\{\s*navigation:\s*auto;/);
+    assert.match(css, /::view-transition\s*\{\s*background:\s*var\(--bg\);/);
+    assert.match(css, /::view-transition-old\(root\)\s*\{\s*animation:\s*none;/);
+    assert.match(css, /::view-transition-new\(root\)[\s\S]*?page-navigation-enter var\(--duration-normal\) var\(--ease-out-expo\) backwards;/);
+    assert.match(css, /@keyframes page-navigation-enter\s*\{[\s\S]*?opacity:\s*0;[\s\S]*?translateY\(12px\);[\s\S]*?opacity:\s*1;/);
+    assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?::view-transition-old\(root\),[\s\S]*?::view-transition-new\(root\)[\s\S]*?animation:\s*none;/);
+  });
+
+  it('ships an early navigation gate and compatible module manifest for all seven sections', async (t) => {
+    const testRoot = createTestBuildRoot();
+    const DIST = path.join(testRoot, 'dist-build');
+    t.after(() => fs.rmSync(testRoot, { recursive: true, force: true }));
+    const { buildSite } = await import('../build.mjs');
+    buildSite({ distDir: DIST, tmpRoot: testRoot });
+    const routes = ['/', '/blog/', '/projects/', '/about/', '/friends/', '/terms/', '/jobs/'];
+    let version;
+    for (const route of routes) {
+      const html = fs.readFileSync(path.join(DIST, route.slice(1), 'index.html'), 'utf8');
+      const dom = new JSDOM(html);
+      const doc = dom.window.document;
+      const manifest = JSON.parse(doc.getElementById('site-navigation-data').textContent);
+      version ||= manifest.version;
+      assert.match(version, /^[a-f0-9]{16}$/);
+      assert.equal(manifest.version, version);
+      assert.deepEqual(Object.keys(manifest.routes).sort(), [...routes].sort());
+      for (const modules of Object.values(manifest.routes)) {
+        for (const module of modules) {
+          assert.match(module, /^\/assets\/(?:terms|jobs)-[A-Z0-9]+\.js$/);
+          assert.ok(fs.existsSync(path.join(DIST, module.slice(1))));
+          assert.ok(manifest.preloads[module].includes(module));
+          for (const dependency of manifest.preloads[module]) {
+            assert.match(dependency, /^\/assets\/(?:terms|jobs|chunk)-[A-Z0-9]+\.js$/);
+            assert.ok(fs.existsSync(path.join(DIST, dependency.slice(1))));
+          }
+        }
+      }
+      assert.ok(html.indexOf('function installNavigationGate') < html.indexOf('<link rel="stylesheet"'));
+      assert.equal(doc.querySelector('main').dataset.pagePath, route);
+      assert.equal(doc.querySelectorAll('main script:not([type="application/json"])').length, 0);
+      assert.match(html, /src="\/assets\/navigation-[A-Z0-9]+\.js"/);
+      dom.window.close();
+    }
+    const css = fs.readFileSync(path.join(ROOT, 'public/styles/global.css'), 'utf8');
+    assert.match(css, /\.page-content-enter\s*\{\s*animation: page-navigation-enter var\(--duration-normal\) var\(--ease-out-expo\) backwards;/);
+    assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.page-content-enter \{ animation: none;/);
+  });
+
+  it('guards theme switching from animating the whole page', () => {
+    const buildSource = fs.readFileSync(path.join(ROOT, 'src', 'build.mjs'), 'utf8');
+    const css = fs.readFileSync(path.join(ROOT, 'public', 'styles', 'global.css'), 'utf8');
+    assert.match(buildSource, /classList\.add\('theme-switching'\)/);
+    assert.match(buildSource, /requestAnimationFrame\(function\(\)\{requestAnimationFrame\(/);
+    assert.match(buildSource, /classList\.remove\('theme-switching'\)/);
+    assert.match(css, /html\.theme-switching \.card,[\s\S]*?html\.theme-switching \.rx-cat\s*\{[\s\S]*?transition:\s*none\s*!important;/);
+    assert.doesNotMatch(css, /html\.theme-switching \*\s*\{/);
+    assert.match(css, /html\.theme-switching \.rx-hero-aura,[\s\S]*?html\.theme-switching \.btn-primary\s*\{[\s\S]*?animation-play-state:\s*paused\s*!important;/);
+    assert.doesNotMatch(css, /html\.theme-switching body::before[\s\S]*?display:\s*none/);
+  });
+
+  it('keeps theme-sensitive interactions on explicit CSS transitions', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'public', 'styles', 'global.css'), 'utf8');
+    const cardBlock = css.match(/\.card\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    const termsCategoriesBlock = css.match(/\.terms-cats button\s*\{([\s\S]*?)\n\}/)?.[1] ?? '';
+    assert.doesNotMatch(cardBlock, /transition:\s*all\b/);
+    assert.doesNotMatch(termsCategoriesBlock, /transition:\s*all\b/);
+    assert.match(cardBlock, /transition:\s*transform/);
+    assert.match(termsCategoriesBlock, /transition:\s*background-color/);
+  });
+
+  it('keeps the mobile blog filter from covering post cards', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'public', 'styles', 'global.css'), 'utf8');
+    const filterBlock = [...css.matchAll(/@media\s*\(max-width:\s*768px\)/g)]
+      .map((match) => extractCssBlock(css.slice(match.index), /^@media\s*\(max-width:\s*768px\)/)?.body.match(/\.rx-filter-bar\s*\{([^}]*)\}/)?.[1])
+      .find(Boolean) ?? '';
+    assert.ok(filterBlock, 'mobile filter CSS block must exist');
+    assert.match(filterBlock, /position:\s*static/, 'mobile filter must stay in normal document flow');
+    assert.match(filterBlock, /z-index:\s*auto/, 'mobile filter must not stack above post cards');
+    assert.match(filterBlock, /backdrop-filter:\s*none/, 'mobile filter must not create an opaque overlay');
+  });
+});
+
+describe('Blog filter interaction', () => {
+  let testRoot;
+  let blogHtml;
+
+  before(async () => {
+    testRoot = createTestBuildRoot();
+    const { buildSite } = await import('../build.mjs');
+    buildSite({ distDir: path.join(testRoot, 'dist-build'), tmpRoot: testRoot });
+    blogHtml = fs.readFileSync(path.join(testRoot, 'dist-build', 'blog', 'index.html'), 'utf8');
+  });
+
+  after(() => fs.rmSync(testRoot, { recursive: true, force: true }));
+
+  function createBlogDom(search = '') {
+    const dom = new JSDOM(blogHtml, {
+      url: `https://mostarmanus.ink/blog/${search}`,
+      runScripts: 'dangerously',
+      pretendToBeVisual: true,
+      beforeParse(window) {
+        window.console.warn = () => {};
+        window.matchMedia = () => ({
+          matches: false,
+          addEventListener() {},
+          removeEventListener() {},
+          addListener() {},
+          removeListener() {},
+        });
+        window.IntersectionObserver = class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        };
+      },
+    });
+    mountBlog(dom.window.document.querySelector('main'), dom.window);
+    return dom;
+  }
+
+  function visibleCards(dom) {
+    return [...dom.window.document.querySelectorAll('#post-grid .card')]
+      .filter((card) => card.style.display !== 'none');
+  }
+
+  function categoryCards(dom, category) {
+    return visibleCards(dom).filter((card) => card.getAttribute('data-cat') === category);
+  }
+
+  function waitForPopState(dom) {
+    return new Promise((resolve) => dom.window.addEventListener('popstate', resolve, { once: true }));
+  }
+
+  it('shows all posts initially, filters by category, and clears a selected category on repeat click', () => {
+    const dom = createBlogDom();
+    const { document, location } = dom.window;
+    const debugButton = document.querySelector('[data-filter="debug"]');
+    const total = visibleCards(dom).length;
+
+    assert.equal(total, document.querySelectorAll('#post-grid .card').length);
+    assert.ok([...document.querySelectorAll('#filters button')].every((button) => button.getAttribute('aria-pressed') === 'false'));
+
+    debugButton.click();
+    assert.equal(location.search, '?cat=debug');
+    assert.equal(visibleCards(dom).length, categoryCards(dom, 'debug').length);
+    assert.equal(debugButton.getAttribute('aria-pressed'), 'true');
+
+    debugButton.click();
+    assert.equal(location.pathname + location.search, '/blog/');
+    assert.equal(visibleCards(dom).length, total);
+    assert.equal(debugButton.getAttribute('aria-pressed'), 'false');
+  });
+
+  it('normalizes legacy tags and invalid categories while retaining a valid category', () => {
+    const validCategoryDom = createBlogDom('?cat=debug&tag=PID');
+    assert.equal(validCategoryDom.window.location.search, '?cat=debug');
+    assert.equal(visibleCards(validCategoryDom).length, categoryCards(validCategoryDom, 'debug').length);
+
+    const invalidCategoryDom = createBlogDom('?cat=unknown&tag=PID');
+    assert.equal(invalidCategoryDom.window.location.pathname + invalidCategoryDom.window.location.search, '/blog/');
+    assert.equal(visibleCards(invalidCategoryDom).length, invalidCategoryDom.window.document.querySelectorAll('#post-grid .card').length);
+
+    const tagOnlyDom = createBlogDom('?tag=PID');
+    assert.equal(tagOnlyDom.window.location.pathname + tagOnlyDom.window.location.search, '/blog/');
+  });
+
+  it('restores category state after browser back, forward, and popstate navigation', async () => {
+    const dom = createBlogDom();
+    const { document, history, location } = dom.window;
+    document.querySelector('[data-filter="debug"]').click();
+    document.querySelector('[data-filter="learn"]').click();
+
+    const back = waitForPopState(dom);
+    history.back();
+    await back;
+    assert.equal(location.search, '?cat=debug');
+    assert.equal(visibleCards(dom).length, categoryCards(dom, 'debug').length);
+
+    const forward = waitForPopState(dom);
+    history.forward();
+    await forward;
+    assert.equal(location.search, '?cat=learn');
+    assert.equal(visibleCards(dom).length, categoryCards(dom, 'learn').length);
+
+    history.pushState({}, '', '/blog/?cat=insight&tag=legacy');
+    dom.window.dispatchEvent(new dom.window.PopStateEvent('popstate'));
+    assert.equal(location.search, '?cat=insight');
+    assert.equal(visibleCards(dom).length, categoryCards(dom, 'insight').length);
+  });
+
+  it('keeps the native more control collapsed until opened', () => {
+    const dom = createBlogDom();
+    const more = dom.window.document.querySelector('details.rx-filter-more');
+
+    assert.equal(more.open, false);
+    assert.equal(more.querySelector('.rx-filter-more-open').textContent, '展开');
+    assert.equal(more.querySelector('.rx-filter-more-close').textContent, '收起');
+    assert.equal(more.querySelector('p').textContent, '暂无更多筛选');
+
+    more.open = true;
+    assert.equal(more.open, true);
   });
 });
 
@@ -526,12 +795,7 @@ describe('Glossary search and filter logic', () => {
   const glossaryData = JSON.parse(fs.readFileSync(path.join(SRC, 'data', 'glossary.json'), 'utf8'));
   const categories = new Set(glossaryData.map((term) => term.category));
 
-  it('places direct term-name matches before related summary-only matches', async () => {
-    const {
-      getTermNameMatchRank,
-      groupGlossarySearchResults,
-      matchesGlossaryRelatedContent,
-    } = await import('../build.mjs');
+  it('places direct term-name matches before related summary-only matches', () => {
     const groups = groupGlossarySearchResults(glossaryData, 'ROS', 'all', categories);
 
     assert.equal(groups.isSearch, true);
@@ -544,8 +808,7 @@ describe('Glossary search and filter logic', () => {
     assert.ok(groups.related.some((term) => term.id === 'yaml'), 'summary-only ROS content must move after direct matches');
   });
 
-  it('treats English full names and aliases as term-name matches', async () => {
-    const { groupGlossarySearchResults } = await import('../build.mjs');
+  it('treats English full names and aliases as term-name matches', () => {
     const fullNameGroups = groupGlossarySearchResults(glossaryData, 'Monte Carlo', 'all', categories);
     const aliasGroups = groupGlossarySearchResults(glossaryData, '语音活动检测', 'all', categories);
 
@@ -553,8 +816,7 @@ describe('Glossary search and filter logic', () => {
     assert.ok(aliasGroups.strongest.some((term) => term.id === 'vad'));
   });
 
-  it('finds core extension terms through practical multiword aliases without polluting ROS summaries', async () => {
-    const { groupGlossarySearchResults } = await import('../build.mjs');
+  it('finds core extension terms through practical multiword aliases without polluting ROS summaries', () => {
     const expectedMatches = [
       ['Quality of Service', 'qos'],
       ['map server', 'map_server'],
@@ -574,16 +836,14 @@ describe('Glossary search and filter logic', () => {
     assert.ok(!rosGroups.related.some((term) => term.id === 'qos' || term.id === 'lifecycle_node'), 'generic ROS summaries should not flood related content');
   });
 
-  it('shows summary-only matches in the related-content group', async () => {
-    const { groupGlossarySearchResults } = await import('../build.mjs');
+  it('shows summary-only matches in the related-content group', () => {
     const groups = groupGlossarySearchResults(glossaryData, '粒子滤波', 'all', categories);
 
     assert.equal(groups.strongest.length, 0);
     assert.ok(groups.related.some((term) => term.id === 'amcl'));
   });
 
-  it('keeps category filtering as an AND condition without searching category labels', async () => {
-    const { groupGlossarySearchResults } = await import('../build.mjs');
+  it('keeps category filtering as an AND condition without searching category labels', () => {
     const groups = groupGlossarySearchResults(glossaryData, 'PID', '导航与运动安全', categories);
 
     assert.ok(groups.results.length > 0);
@@ -591,8 +851,7 @@ describe('Glossary search and filter logic', () => {
     assert.ok(groups.strongest.some((term) => term.id === 'pid'));
   });
 
-  it('keeps the normal category list ungrouped and paginatable when no search is entered', async () => {
-    const { filterGlossary, groupGlossarySearchResults } = await import('../build.mjs');
+  it('keeps the normal category list ungrouped and paginatable when no search is entered', () => {
     const groups = groupGlossarySearchResults(glossaryData, '', '导航与运动安全', categories);
 
     assert.equal(groups.isSearch, false);
@@ -602,8 +861,7 @@ describe('Glossary search and filter logic', () => {
     assert.deepEqual(filterGlossary(glossaryData, '', '导航与运动安全', categories), groups.results);
   });
 
-  it('returns no result for an unrelated query and safely falls back from unknown categories', async () => {
-    const { groupGlossarySearchResults } = await import('../build.mjs');
+  it('returns no result for an unrelated query and safely falls back from unknown categories', () => {
     const noResults = groupGlossarySearchResults(glossaryData, 'zzz_nonexistent_term_xyz', 'all', categories);
     const fallback = groupGlossarySearchResults(glossaryData, '', 'nonexistent_category', categories);
 
@@ -679,14 +937,25 @@ describe('Terms page build output', () => {
 
     // No U+FFFD characters
     assert.doesNotMatch(html, /\uFFFD/, 'output must not contain replacement character');
-    assert.match(html, /history\.pushState/, 'category and clear actions must create a history entry');
-    assert.match(html, /history\.replaceState/, 'search input must replace the current history entry');
+
+    // Island contracts: JSON data island + module entry, no executable glossary IIFE
+    assert.match(html, /id="terms-data"\s+type="application\/json"/, 'must expose terms data as JSON');
+    assert.doesNotMatch(html, /var glossaryData\s*=/, 'must not embed glossary as executable JS');
+    assert.doesNotMatch(html, /getCompactPaginationItems\.toString/, 'must not weave pagination helpers into the page');
+    const termsDataMatch = html.match(/<script id="terms-data" type="application\/json">([\s\S]*?)<\/script>/);
+    assert.ok(termsDataMatch, 'terms-data payload must exist');
+    const termsData = JSON.parse(termsDataMatch[1].replace(/\\u003c/g, '<').replace(/\\u003e/g, '>').replace(/\\u0026/g, '&'));
+    assert.ok(Array.isArray(termsData.terms) && termsData.terms.length > 0);
+    assert.ok(Array.isArray(termsData.categories) && termsData.categories.length > 0);
+    assert.equal(termsData.perPage, TERMS_PER_PAGE);
+    assert.match(html, /id="terms-explorer-root"/);
+    assert.match(html, /"\/terms\/":\["\/assets\/terms-[A-Za-z0-9]+\.js"\]/, 'manifest must load the hashed terms island bundle');
   });
 
   it('uses ten-item client pagination with accessible controls and stable URLs', () => {
     const termsHtml = fs.readFileSync(path.join(termsDist, 'terms', 'index.html'), 'utf8');
     const glossary = JSON.parse(fs.readFileSync(path.join(SRC, 'data', 'glossary.json'), 'utf8'));
-    const pageSize = 10;
+    const pageSize = TERMS_PER_PAGE;
     const pageSizes = Array.from(
       { length: Math.ceil(glossary.length / pageSize) },
       (_, index) => glossary.slice(index * pageSize, (index + 1) * pageSize).length,
@@ -695,28 +964,41 @@ describe('Terms page build output', () => {
     assert.ok(pageSizes.every((size) => size > 0 && size <= pageSize), 'each page must contain no more than ten terms');
     assert.equal(pageSizes.reduce((total, size) => total + size, 0), glossary.length, 'pagination must retain every term');
 
-    const scriptMatch = termsHtml.match(/<script>\n\s*\(function\(\)\{\n\s*var glossaryData[\s\S]*?\}\)\(\);\s*\n\s*<\/script>/);
-    assert.ok(scriptMatch, 'must have complete glossary page script');
-    const script = scriptMatch[0];
-    assert.match(script, /var TERMS_PER_PAGE = 10;/, 'must use a single ten-item page size constant');
-    assert.match(script, /function renderPagination\(totalPages\)/, 'must render pagination from the filtered result count');
-    assert.match(script, /getCompactPaginationItems\(currentPage, totalPages\)/, 'must render a compact page-number sequence');
-    assert.match(script, /appendPageJump\(\);\s*appendPageButton\(String\(lastPage\), lastPage/, 'page jump must appear before the dynamic last-page button');
-    assert.match(script, /ariaLabel: '第 ' \+ lastPage \+ ' 页（最后一页）'/, 'the dynamic last page must be announced clearly');
-    assert.match(script, /input\.inputMode = 'numeric'/, 'page input must request a numeric touch keyboard');
-    assert.match(script, /input\.enterKeyHint = 'go'/, 'page input must expose an Enter-to-go hint');
-    assert.match(script, /termsPagination\.addEventListener\('submit'/, 'page jump must work through form submit and Enter');
-    assert.match(script, /parsePaginationJump\(input \? input\.value : '', totalPages\)/, 'page jump must use strict validation');
-    assert.match(script, /announce\('请输入 1 到 ' \+ totalPages \+ ' 的整数页码'\)/, 'invalid page input must be announced');
-    assert.match(script, /button\.setAttribute\('aria-controls', 'terms-results'\)/, 'page buttons must announce their controlled result area');
-    assert.match(script, /button\.setAttribute\('aria-current', 'page'\)/, 'current page must be announced');
-    assert.match(script, /button\.disabled = true/, 'current and boundary page controls must be disabled natively');
-    assert.match(script, /if \(!currentResultGroup\.isSearch && currentPage > 1\) params\.set\('page', String\(currentPage\)\)/, 'only later non-search pages may add the page URL parameter');
-    assert.match(script, /function parsePageParam\(rawPage\)/, 'page parameter must be parsed and normalized safely');
-    assert.match(script, /applyFilters\(1\);\s*updateUrl\('replace'\)/, 'search must reset pagination to page one');
-    assert.match(script, /applyFilters\(1\);\s*updateUrl\('push'\)/, 'category and clear changes must reset pagination to page one');
-    assert.match(script, /function renderSearchSections\(resultGroup\)/, 'search mode must render the two relevance groups');
-    assert.match(script, /renderPagination\(0\)/, 'search mode must not paginate grouped results');
+    // Structural shell remains for no-JS and for the island to take over.
+    assert.match(termsHtml, /id="terms-pagination"/);
+    assert.match(termsHtml, /aria-label="术语分页"/);
+    assert.match(termsHtml, /id="terms-results"/);
+    assert.doesNotMatch(termsHtml, /function renderPagination\(totalPages\)/, 'pagination must not live in an inline IIFE');
+
+    // URL and pagination contracts on pure helpers used by the island.
+    assert.equal(TERMS_PER_PAGE, 10);
+    assert.deepEqual(parsePageParam(null), { page: 1, normalized: false });
+    assert.deepEqual(parsePageParam('1'), { page: 1, normalized: true });
+    assert.deepEqual(parsePageParam('3'), { page: 3, normalized: false });
+    assert.deepEqual(parsePageParam('abc'), { page: 1, normalized: true });
+    assert.equal(termsTotalPages(0, 10), 1);
+    assert.equal(termsTotalPages(10, 10), 1);
+    assert.equal(termsTotalPages(11, 10), 2);
+    assert.equal(buildTermsUrl({ query: '', category: 'all', page: 1, isSearch: false }), '/terms/');
+    assert.equal(buildTermsUrl({ query: 'ROS', category: 'all', page: 1, isSearch: true }), '/terms/?q=ROS');
+    assert.equal(buildTermsUrl({ query: '', category: '导航与运动安全', page: 2, isSearch: false }), '/terms/?category=%E5%AF%BC%E8%88%AA%E4%B8%8E%E8%BF%90%E5%8A%A8%E5%AE%89%E5%85%A8&page=2');
+    assert.equal(buildTermsUrl({ query: '', category: 'all', page: 1, isSearch: false, termId: 'ros2' }), '/terms/#ros2');
+    assert.equal(buildTermsUrl({ query: 'PID', category: 'all', page: 1, isSearch: true, termId: 'pid' }), '/terms/?q=PID#pid');
+
+    // Compact pagination keeps last page dynamic for the jump control.
+    const items = getCompactPaginationItems(10, 20);
+    assert.equal(items[items.length - 1], 20);
+    assert.equal(parsePaginationJump('0', 5), null);
+    assert.equal(parsePaginationJump('6', 5), null);
+    assert.equal(parsePaginationJump('3', 5), 3);
+
+    // Search mode never paginates grouped results (totalPages 0 → hidden pager).
+    assert.equal(formatTermsCountText({ isSearch: true, strongest: [1], related: [2], results: [1, 2] }), '找到 2 个结果：1 个术语名匹配，1 个相关内容');
+    assert.equal(formatTermsCountText({ isSearch: true, strongest: [], related: [], results: [] }), '无匹配结果');
+    assert.equal(
+      formatTermsCountText({ isSearch: false, results: Array.from({ length: 12 }, (_, i) => i), page: 99, totalPages: 2, perPage: 10 }),
+      '显示 11–12 / 共 12 个术语，第 2 / 2 页',
+    );
   });
 
   it('styles pagination for touch, themes, and narrow screens', () => {
@@ -939,94 +1221,287 @@ describe('Anchor offset and hash target highlight', () => {
     assert.match(css, /@media.*prefers-reduced-motion:\s*reduce[\s\S]*?\.term-card--hash-target\.animate-pulse/, 'must handle reduced motion');
   });
 
-  it('includes scrollToTermFromHash logic in terms page script', async () => {
-    const termsHtml = fs.readFileSync(path.join(anchorDist, 'terms', 'index.html'), 'utf8');
-    // Match the terms page script: <script> newline indent (function(){ newline indent var glossaryData ... })(); newline indent </script>
-    const scriptMatch = termsHtml.match(/<script>\n\s*\(function\(\)\{\n\s+var glossaryData([\s\S]*?)\)\(\);\s*\n\s*<\/script>/);
-    assert.ok(scriptMatch, 'must have terms page inline script with glossaryData');
-    const script = scriptMatch[1];
+  it('includes hash navigation contracts for the terms island', () => {
+    const glossary = JSON.parse(fs.readFileSync(path.join(SRC, 'data', 'glossary.json'), 'utf8'));
+    const categories = new Set(glossary.map((term) => term.category));
+    const allGroups = groupGlossarySearchResults(glossary, '', 'all', categories);
 
-    // Hash validation regex (check presence of regex literal in script)
-    assert.ok(script.includes('/^[a-z0-9_-]+$/'), 'must validate hash format with regex');
+    // Illegal / missing hashes
+    assert.equal(termIdFromHash(''), '');
+    assert.equal(termIdFromHash('#'), '');
+    assert.equal(termIdFromHash('#%%%'), '');
+    assert.equal(termIdFromHash('#Not Valid'), '');
+    assert.equal(termIdFromHash('#ros2'), 'ros2');
+    assert.equal(resolveHashTarget({ terms: glossary, filteredTerms: allGroups.results, termId: '#nope' }).status, 'missing');
+    assert.equal(resolveHashTarget({ terms: glossary, filteredTerms: allGroups.results, termId: '' }).status, 'invalid');
 
-    // scrollIntoView call (check substring presence)
-    assert.ok(script.includes('scrollIntoView({') && script.includes('block:'), 'must call scrollIntoView with options');
+    // Cross-page target resolves to the correct page
+    const late = glossary[glossary.length - 1];
+    const lateResolved = resolveHashTarget({
+      terms: glossary,
+      filteredTerms: allGroups.results,
+      termId: late.id,
+      isSearch: false,
+      perPage: TERMS_PER_PAGE,
+    });
+    assert.equal(lateResolved.status, 'ok');
+    assert.equal(lateResolved.targetPage, Math.floor(lateResolved.targetIndex / TERMS_PER_PAGE) + 1);
 
-    // pushState for link clicks
-    assert.ok(script.includes('history.pushState'), 'must use pushState for navigation');
-    assert.doesNotMatch(script, /history\.pushState\(null\s+['"]/, 'must emit valid pushState syntax');
+    // Filter-hidden target is distinguished from another-page target
+    const filtered = groupGlossarySearchResults(glossary, 'zzz_unlikely', 'all', categories);
+    const hidden = resolveHashTarget({
+      terms: glossary,
+      filteredTerms: filtered.results,
+      termId: 'ros2',
+      isSearch: false,
+      perPage: TERMS_PER_PAGE,
+    });
+    assert.equal(hidden.status, 'hidden');
 
-    // hashchange listener
-    assert.ok(script.includes("addEventListener('hashchange'"), 'must listen for hashchange');
+    // Search mode never paginates
+    const searchGroups = groupGlossarySearchResults(glossary, 'ROS', 'all', categories);
+    const searchHit = searchGroups.results[0];
+    const searchResolved = resolveHashTarget({
+      terms: glossary,
+      filteredTerms: searchGroups.results,
+      termId: searchHit.id,
+      isSearch: true,
+      perPage: TERMS_PER_PAGE,
+    });
+    assert.equal(searchResolved.status, 'ok');
+    assert.equal(searchResolved.targetPage, 1);
 
-    // popstate listener
-    assert.ok(script.includes("addEventListener('popstate'"), 'must listen for popstate');
+    // URL builder preserves hash
+    assert.equal(
+      buildTermsUrl({ query: '', category: 'all', page: 1, isSearch: false, termId: 'ros2' }),
+      '/terms/#ros2',
+    );
   });
 
-  it('emits a browser-compilable terms page script', async () => {
+  it('loads the terms island only on the terms page', () => {
     const termsHtml = fs.readFileSync(path.join(anchorDist, 'terms', 'index.html'), 'utf8');
-    const scriptMatch = termsHtml.match(/<script>\n\s*\(function\(\)\{\n\s*var glossaryData[\s\S]*?\}\)\(\);\s*\n\s*<\/script>/);
-    assert.ok(scriptMatch, 'must have complete glossary page script');
-    const script = scriptMatch[0]
-      .replace(/^<script>\s*/, '')
-      .replace(/\s*<\/script>$/, '');
-    assert.doesNotThrow(() => new Function(script), 'generated browser script must compile');
+    const homeHtml = fs.readFileSync(path.join(anchorDist, 'index.html'), 'utf8');
+    const blogHtml = fs.readFileSync(path.join(anchorDist, 'blog', 'index.html'), 'utf8');
+
+    assert.match(termsHtml, /"\/terms\/":\["\/assets\/terms-[A-Za-z0-9]+\.js"\]/, 'manifest must load the terms island');
+    assert.match(termsHtml, /src="\/assets\/site-[A-Za-z0-9]+\.js"/, 'terms page still loads global search');
+    assert.doesNotMatch(homeHtml, /src="\/assets\/terms-/, 'home must not load terms island');
+    assert.doesNotMatch(blogHtml, /src="\/assets\/terms-/, 'blog index must not load terms island');
+
+    // Single history-writer URL contract: explicit term hash is preserved when filters change.
+    assert.equal(
+      buildTermsUrl({ query: 'PID', category: 'all', page: 1, isSearch: true, termId: 'pid' }),
+      '/terms/?q=PID#pid',
+    );
+    assert.equal(
+      buildTermsUrl({ query: '', category: 'all', page: 2, isSearch: false, termId: 'ros2' }),
+      '/terms/?page=2#ros2',
+    );
+
+    // Pulse/highlight classes remain part of the CSS contract used by the island.
+    const cssFiles = fs.readdirSync(path.join(anchorDist, 'assets')).filter((name) => /^global-[a-f0-9]+\.css$/.test(name));
+    const css = fs.readFileSync(path.join(anchorDist, 'assets', cssFiles[0]), 'utf8');
+    assert.match(css, /\.term-card--hash-target/);
+    assert.match(css, /animate-pulse/);
+    assert.match(css, /prefers-reduced-motion:\s*reduce/);
   });
 
-  it('includes aria-live region for accessibility announcements', async () => {
-    const termsHtml = fs.readFileSync(path.join(anchorDist, 'terms', 'index.html'), 'utf8');
-    const scriptMatch = termsHtml.match(/<script>\n\s*\(function\(\)\{\n\s+var glossaryData([\s\S]*?)\)\(\);\s*\n\s*<\/script>/);
-    assert.ok(scriptMatch, 'must have terms page inline script with glossaryData');
-    const script = scriptMatch[1];
-    assert.match(script, /aria-live.*polite/, 'must create aria-live region');
-    assert.match(script, /已定位到术语/, 'must announce target term name');
+});
+
+describe('Jobs data validation and URL helpers', () => {
+  const fixture = () => ({
+    dataAsOf: '2026-09-25',
+    techStack: [
+      { id: 'ros-ros2', rank: 1, name: 'ROS/ROS2', category: '机器人框架/库', count: 10, percent: 67, summary: '中间件。', related: ['cpp'] },
+      { id: 'cpp', rank: 2, name: 'C++', category: '编程语言', count: 9, percent: 60, summary: '语言。', related: [] },
+    ],
+    positions: [
+      {
+        id: 'job-a', title: '岗位A', company: '公司A', salary: '100-200元/天', location: '杭州',
+        degree: '本科', scale: '20-99人', tier: '强推', matchScore: 42,
+        stack: ['Python'], jd: '职责摘要。', url: 'https://www.zhipin.com/job_detail/a.html',
+      },
+    ],
   });
 
-  it('handles edge cases: illegal hash, missing target, hidden target', async () => {
-    const termsHtml = fs.readFileSync(path.join(anchorDist, 'terms', 'index.html'), 'utf8');
-    const scriptMatch = termsHtml.match(/<script>\n\s*\(function\(\)\{\n\s+var glossaryData([\s\S]*?)\)\(\);\s*\n\s*<\/script>/);
-    const script = scriptMatch[1];
-
-    // Illegal hash returns false early
-    assert.match(script, /return false/, 'must return false for invalid input');
-
-    // Only an explicit related-link click may reveal an otherwise filter-hidden target.
-    assert.match(script, /if \(!options\.revealHidden\)[\s\S]*?当前筛选已隐藏该术语/, 'direct hash navigation must announce instead of clearing filters');
-    assert.match(script, /filteredTerms\.findIndex/, 'must distinguish filter-hidden terms from terms on another page');
-    assert.match(script, /clearFiltersForTerm\(\);/, 'related-link navigation must reveal a filter-hidden target');
-    assert.match(script, /var targetPage = currentResultGroup\.isSearch \? 1 : Math\.floor\(targetIndex \/ TERMS_PER_PAGE\) \+ 1/, 'hash navigation must skip pagination for grouped search results');
-    assert.match(script, /if \(currentPage !== targetPage\) applyFilters\(targetPage\)/, 'hash navigation must show an otherwise matching target page');
-    assert.match(script, /var url = '\/terms\/' \+ \(qs \? '\?' \+ qs : ''\) \+ hash/, 'filter URL builder must preserve a requested term hash');
-
-    // Filter conflict announcement
-    assert.match(script, /当前筛选已隐藏该术语/, 'must announce when filter hides target');
+  it('accepts a well-formed payload and returns id sets', () => {
+    const { stackIds, positionIds } = validateJobsData(fixture());
+    assert.ok(stackIds.has('ros-ros2') && stackIds.has('cpp'));
+    assert.ok(positionIds.has('job-a'));
   });
 
-  it('uses ResizeObserver with window.resize fallback for header detection', async () => {
-    const termsHtml = fs.readFileSync(path.join(anchorDist, 'terms', 'index.html'), 'utf8');
-    const scriptMatch = termsHtml.match(/<script>\n\s*\(function\(\)\{\n\s+var glossaryData([\s\S]*?)\)\(\);\s*\n\s*<\/script>/);
-    const script = scriptMatch[1];
-    assert.match(script, /ResizeObserver/, 'must use ResizeObserver');
-    assert.match(script, /addEventListener\('resize'/, 'must have resize fallback');
-    assert.match(script, /--header-height/, 'must update CSS variable dynamically');
+  it('rejects bad payloads: dataAsOf, rank gaps, duplicate ids, dangling related, bad percent, http urls', () => {
+    assert.throws(() => validateJobsData({ ...fixture(), dataAsOf: '2026/09/25' }), /dataAsOf/);
+    assert.throws(() => {
+      const d = fixture();
+      d.techStack[1].rank = 3;
+      validateJobsData(d);
+    }, /rank/);
+    assert.throws(() => {
+      const d = fixture();
+      d.techStack[1].id = 'ros-ros2';
+      validateJobsData(d);
+    }, /duplicate/);
+    assert.throws(() => {
+      const d = fixture();
+      d.techStack[0].related = ['nope'];
+      validateJobsData(d);
+    }, /unknown related/);
+    assert.throws(() => {
+      const d = fixture();
+      d.techStack[0].percent = 101;
+      validateJobsData(d);
+    }, /percent/);
+    assert.throws(() => {
+      const d = fixture();
+      d.positions[0].url = 'http://www.zhipin.com/job_detail/a.html';
+      validateJobsData(d);
+    }, /https/);
   });
 
-  it('ensures pulse animation auto-cleans up after playback', async () => {
-    const termsHtml = fs.readFileSync(path.join(anchorDist, 'terms', 'index.html'), 'utf8');
-    const scriptMatch = termsHtml.match(/<script>\n\s*\(function\(\)\{\n\s+var glossaryData([\s\S]*?)\)\(\);\s*\n\s*<\/script>/);
-    const script = scriptMatch[1];
-    // Timer-based cleanup
-    assert.match(script, /setTimeout/, 'must use timer for cleanup');
-    // animationend cleanup
-    assert.match(script, /animationend/, 'must listen for animationend');
-    // Class removal
-    assert.match(script, /classList\.remove\(['"]term-card--hash-target['"],\s*['"]animate-pulse['"]\)/, 'must remove both classes on cleanup');
-    assert.match(script, /var _pulseCard = null/, 'must track the previously highlighted card');
+  it('normalizes tabs, clamps pages and builds clean URLs', () => {
+    assert.equal(normalizeJobsTab('jobs'), 'jobs');
+    assert.equal(normalizeJobsTab('bogus'), 'stack');
+    assert.equal(jobsTotalPages(0, STACK_PER_PAGE), 1);
+    assert.equal(jobsTotalPages(26, STACK_PER_PAGE), 6);
+    assert.equal(jobsTotalPages(15, JOBS_PER_PAGE), 4);
+    assert.equal(clampJobsPage(99, 5), 5);
+    assert.equal(clampJobsPage('abc', 5), 1);
+    assert.equal(buildJobsUrl({}), '/jobs/');
+    assert.equal(buildJobsUrl({ tab: 'stack', page: 1 }), '/jobs/');
+    assert.equal(buildJobsUrl({ tab: 'stack', page: 2 }), '/jobs/?page=2');
+    assert.equal(buildJobsUrl({ tab: 'jobs', page: 1 }), '/jobs/?tab=jobs');
+    assert.equal(buildJobsUrl({ tab: 'jobs', page: 3 }), '/jobs/?tab=jobs&page=3');
+    assert.equal(pageForIndex(0, 5), 1);
+    assert.equal(pageForIndex(4, 5), 1);
+    assert.equal(pageForIndex(5, 5), 2);
   });
 
-  it('keeps static verification reports out of publish output', () => {
-    const verifier = fs.readFileSync(path.join(SRC, 'test', 'anchor-verify.mjs'), 'utf8');
-    assert.doesNotMatch(verifier, /path\.join\(DIST_DIR, 'anchor-verification-report\.html'\)/, 'verification reports must not be written into dist-build');
-    assert.match(verifier, /path\.join\(PROJECT_ROOT, 'output', 'verification'\)/, 'verification reports must use a non-published output folder');
+  it('parses URL state per tab and flags values that need cleanup', () => {
+    assert.deepEqual(readJobsUrlState('', { stackCount: 26, jobsCount: 17 }), { tab: 'stack', page: 1, normalized: false });
+    assert.deepEqual(readJobsUrlState('?tab=jobs', { stackCount: 26, jobsCount: 17 }), { tab: 'jobs', page: 1, normalized: false });
+    assert.deepEqual(readJobsUrlState('?tab=jobs&page=4', { stackCount: 26, jobsCount: 17 }), { tab: 'jobs', page: 4, normalized: false });
+    assert.deepEqual(readJobsUrlState('?tab=jobs&page=9', { stackCount: 26, jobsCount: 17 }), { tab: 'jobs', page: 5, normalized: true });
+    assert.deepEqual(readJobsUrlState('?tab=stack', { stackCount: 26, jobsCount: 17 }), { tab: 'stack', page: 1, normalized: true });
+    assert.deepEqual(readJobsUrlState('?tab=bogus', { stackCount: 26, jobsCount: 17 }), { tab: 'stack', page: 1, normalized: true });
+    assert.deepEqual(readJobsUrlState('?page=abc', { stackCount: 26, jobsCount: 17 }), { tab: 'stack', page: 1, normalized: true });
+  });
+});
+
+describe('Jobs page build output', () => {
+  let jobsBuildRoot;
+  let jobsDist;
+
+  before(async () => {
+    jobsBuildRoot = createTestBuildRoot();
+    jobsDist = path.join(jobsBuildRoot, 'dist-build');
+    const { buildSite } = await import('../build.mjs');
+    buildSite({ distDir: jobsDist, tmpRoot: jobsBuildRoot });
+  });
+
+  after(() => fs.rmSync(jobsBuildRoot, { recursive: true, force: true }));
+
+  it('generates jobs/index.html with switch, panels, cards and island contracts', () => {
+    const jobsPath = path.join(jobsDist, 'jobs', 'index.html');
+    assert.ok(fs.existsSync(jobsPath), 'jobs/index.html must exist');
+    const html = fs.readFileSync(jobsPath, 'utf8');
+
+    assert.match(html, /<h1 class="terms-title">求职专栏<\/h1>/);
+    assert.match(html, /数据截止 2026-09-29/, 'both tab pages must carry the data cutoff badge');
+
+    // 板块切换：经典拨杆开关 + 两个板块标签（SSR 默认技术栈板块）
+    assert.match(html, /role="switch"/);
+    assert.match(html, /aria-checked="false"/);
+    assert.match(html, /data-tab="stack"/);
+    assert.match(html, /data-tab="jobs"/);
+    assert.match(html, /aria-pressed="true"/);
+
+    // SSR 全量降级：24 张技术栈卡 + 15 张岗位卡（岗位面板默认 hidden）
+    assert.equal(countMatches(html, /class="term-card tech-card"/g), 26, 'must server-render all 26 stack cards');
+    assert.equal(countMatches(html, /class="term-card job-card"/g), 17, 'must server-render all 17 job cards');
+    assert.doesNotMatch(html, /低频需求/, 'low-frequency stack note must not be rendered');
+    assert.match(html, /id="jobs-jobs-panel"[^>]*\shidden/);
+    assert.match(html, /<noscript>/, 'no-JS fallback must reveal the jobs panel');
+    assert.equal(countMatches(html, /查看原始岗位页/g), 17, 'every job card must link to its original page');
+    for (const match of html.matchAll(/<a href="(https:\/\/www\.zhipin\.com\/[^"]+)" target="_blank" rel="noopener noreferrer">查看原始岗位页/g)) {
+      assert.match(match[1], /^https:\/\/www\.zhipin\.com\/job_detail\//);
+    }
+
+    // 分页由 island 接管：SSR 仅保留隐藏壳
+    assert.match(html, /id="jobs-pagination"[^>]*hidden/);
+    assert.doesNotMatch(html, /terms-page-btn[^>]*data-page/, 'pagination buttons must not be prerendered');
+
+    // Island 载荷与 bundle
+    const payloadMatch = html.match(/<script id="jobs-data" type="application\/json">([\s\S]*?)<\/script>/);
+    assert.ok(payloadMatch, 'jobs-data JSON island must exist');
+    const payload = JSON.parse(payloadMatch[1].replace(/\\u003c/g, '<').replace(/\\u003e/g, '>').replace(/\\u0026/g, '&'));
+    assert.equal(payload.techStack.length, 26);
+    assert.equal(payload.positions.length, 17);
+    assert.equal(payload.dataAsOf, '2026-09-29');
+    assert.ok(payload.positions.some((p) => p.title === 'AI潮玩&消费电子测试实习生'), '& must survive JSON escaping');
+    assert.match(html, /"\/jobs\/":\["\/assets\/jobs-[A-Za-z0-9]+\.js"\]/, 'manifest must load the hashed jobs island bundle');
+    assert.doesNotMatch(html, /\uFFFD/);
+  });
+
+  it('keeps pagination math at five stacks and four jobs per page', () => {
+    const data = JSON.parse(fs.readFileSync(path.join(SRC, 'data', 'jobs.json'), 'utf8'));
+    assert.equal(data.techStack.length, 26, 'tech stack must rank exactly 26 items');
+    assert.equal(data.positions.length, 17, 'job list must contain exactly 17 positions');
+
+    const stackPages = Array.from(
+      { length: jobsTotalPages(data.techStack.length, STACK_PER_PAGE) },
+      (_, index) => data.techStack.slice(index * STACK_PER_PAGE, (index + 1) * STACK_PER_PAGE).length,
+    );
+    assert.deepEqual(stackPages, [5, 5, 5, 5, 5, 1], 'stack pagination must show 5 per page');
+    const jobPages = Array.from(
+      { length: jobsTotalPages(data.positions.length, JOBS_PER_PAGE) },
+      (_, index) => data.positions.slice(index * JOBS_PER_PAGE, (index + 1) * JOBS_PER_PAGE).length,
+    );
+    assert.deepEqual(jobPages, [4, 4, 4, 4, 1], 'job pagination must show 4 per page');
+
+    // 关联标签必须全部指向有效技术栈条目
+    const ids = new Set(data.techStack.map((item) => item.id));
+    for (const item of data.techStack) {
+      for (const ref of item.related) {
+        assert.ok(ids.has(ref), `related tag "${ref}" on ${item.id} must resolve`);
+      }
+    }
+    // 岗位与公司一一对应：每条岗位都有公司、JD 摘要、技术栈与原始链接
+    for (const position of data.positions) {
+      assert.ok(position.company && position.jd && position.url.startsWith('https://'), `${position.id} must be complete`);
+      assert.ok(Array.isArray(position.stack) && position.stack.length > 0, `${position.id} must list required stacks`);
+    }
+  });
+
+  it('registers /jobs/ in nav, sitemap, search index and ships the hashed island bundle', () => {
+    const indexHtml = fs.readFileSync(path.join(jobsDist, 'index.html'), 'utf8');
+    assert.match(indexHtml, /href="\/jobs\/"[^>]*>求职专栏<\/a>/, 'header nav must link the jobs column');
+    assert.match(indexHtml, /href="\/jobs\/">求职专栏<\/a>/, 'footer nav must link the jobs column');
+
+    const sitemap = fs.readFileSync(path.join(jobsDist, 'sitemap.xml'), 'utf8');
+    assert.match(sitemap, /<loc>https:\/\/mostarmanus\.ink\/jobs\/<\/loc>/);
+
+    const searchIndex = JSON.parse(fs.readFileSync(path.join(jobsDist, 'search-index.json'), 'utf8'));
+    const jobsEntry = searchIndex.find((item) => item.href === '/jobs/');
+    assert.ok(jobsEntry, 'search index must contain the jobs page');
+    assert.equal(jobsEntry.title, '求职专栏');
+
+    const jobsBundles = fs.readdirSync(path.join(jobsDist, 'assets')).filter((name) => /^jobs-[A-Za-z0-9]+\.js$/.test(name));
+    assert.equal(jobsBundles.length, 1, 'one hashed jobs explorer bundle must be published');
+    const sharedChunks = fs.readdirSync(path.join(jobsDist, 'assets')).filter((name) => /^chunk-[A-Za-z0-9]+\.js$/.test(name));
+    assert.ok(sharedChunks.length >= 1, 'jobs island must share the React runtime chunk');
+  });
+
+  it('styles the rocker switch and keeps it responsive without breaking reduced motion', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'public', 'styles', 'global.css'), 'utf8');
+    const toggle = extractCssBlock(css, /\.jobs-toggle\s/);
+    assert.ok(toggle, '.jobs-toggle block must exist');
+    assert.match(toggle.body, /border-radius:\s*999px/);
+    const knob = extractCssBlock(css, /\.jobs-toggle-knob\s/);
+    assert.ok(knob, '.jobs-toggle-knob block must exist');
+    assert.match(knob.body, /border-radius:\s*50%/);
+    assert.match(css, /\.jobs-toggle\.is-on \{/, 'switch on-state must be styled');
+    assert.match(css, /@media \(max-width: 768px\) \{[\s\S]*?\.jobs-head[\s\S]*?\}/, 'head must stack on mobile');
+    assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?\.jobs-toggle[\s\S]*?\}/);
   });
 });

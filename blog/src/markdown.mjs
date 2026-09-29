@@ -2,6 +2,7 @@
 // 保留 escapeHtml 等必要工具函数供其他模块使用
 import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
+import anchor from 'markdown-it-anchor';
 
 // ---------- HTML 转义 ----------
 export function escapeHtml(s) {
@@ -30,7 +31,19 @@ const md = new MarkdownIt({
   breaks: false,
   linkify: true,        // 将裸 URL 变为可点击链接
   typographer: false,   // 不改变技术内容标点
-}).use(taskLists, { label: true });
+})
+  .use(taskLists, { label: true })
+  .use(anchor, {
+    level: [2, 3],
+    slugify(value) {
+      const slug = String(value || '')
+        .normalize('NFKC')
+        .toLowerCase()
+        .replace(/[^\p{Letter}\p{Number}]+/gu, '-')
+        .replace(/^-+|-+$/g, '');
+      return slug || 'section';
+    },
+  });
 
 // 表格包装器:为表格添加移动端横向滚动容器
 const originalTableOpen = md.renderer.rules.table_open || function(tokens, idx, options, env, self) {
@@ -137,11 +150,16 @@ const originalFence = md.renderer.rules.fence || function(tokens, idx, options, 
 
 md.renderer.rules.fence = function(tokens, idx, options, env, self) {
   const token = tokens[idx];
-  if (String(token.info || '').trim().toLowerCase() !== 'architecture') {
-    return originalFence(tokens, idx, options, env, self);
+  const info = String(token.info || '').trim();
+  if (info.toLowerCase() === 'architecture') {
+    return renderArchitectureFence(token.content) || originalFence(tokens, idx, options, env, self);
   }
 
-  return renderArchitectureFence(token.content) || originalFence(tokens, idx, options, env, self);
+  const language = info.split(/\s+/)[0] || 'text';
+  const rendered = originalFence(tokens, idx, options, env, self);
+  return `<figure class="code-block" data-language="${escapeHtml(language)}"><figcaption class="code-block__bar"><span class="code-block__language">${escapeHtml(
+    language.toUpperCase()
+  )}</span><button class="code-block__copy" type="button" data-copy-code aria-label="复制代码">复制</button></figcaption>${rendered}</figure>\n`;
 };
 // 安全链接验证
 const defaultRender = md.renderer.rules.link_open || function (tokens, idx, options, env, self) {

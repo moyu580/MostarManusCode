@@ -15,6 +15,7 @@ export default {
     { label: '关于 / 履历', href: '/about/' },
     { label: '友链', href: '/friends/' },
     { label: '专业术语', href: '/terms/' },
+    { label: '求职专栏', href: '/jobs/' },
   ],
   // 笔记分类映射
   categories: {

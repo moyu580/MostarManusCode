@@ -5,12 +5,42 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { buildSync } from 'esbuild';
 import matter from 'gray-matter';
 import { mdToHtml, escapeHtml, escapeXml } from './markdown.mjs';
 import config from './config.mjs';
 import { isValidCategory } from './filters.mjs';
-import { getCompactPaginationItems, parsePaginationJump } from './pagination.mjs';
+import {
+  filterGlossary,
+  getTermNameMatchRank,
+  groupGlossarySearchResults,
+  matchesGlossaryRelatedContent,
+  normalizeTermsFilterState,
+  normalizeTermsText,
+  TERMS_PER_PAGE,
+} from './terms.mjs';
+import {
+  JOBS_PER_PAGE,
+  STACK_PER_PAGE,
+  jobsTotalPages,
+  validateJobsData,
+} from './jobs.mjs';
 import { HomePageBody, renderPostCard, RelatedPosts, PostMeta } from './ui/index.mjs';
+import { installNavigationGate } from './client/navigation-bootstrap.mjs';
+
+export {
+  filterGlossary,
+  getTermNameMatchRank,
+  groupGlossarySearchResults,
+  matchesGlossaryRelatedContent,
+  normalizeTermsFilterState,
+  normalizeTermsText,
+  TERMS_PER_PAGE,
+  JOBS_PER_PAGE,
+  STACK_PER_PAGE,
+  jobsTotalPages,
+  validateJobsData,
+};
 
 const siteName = config.site.seoName || config.site.title;
 const ROOT = process.cwd();
@@ -60,6 +90,8 @@ const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
 const resume = readJson(path.join(SRC, 'data', 'resume.json'));
 const friends = readJson(path.join(SRC, 'data', 'friends.json'));
 const glossary = readJson(path.join(SRC, 'data', 'glossary.json'));
+const jobsData = readJson(path.join(SRC, 'data', 'jobs.json'));
+validateJobsData(jobsData);
 const siteOrigin = new URL(config.site.url).origin;
 
 export function safeJsonForScript(value) {
@@ -90,89 +122,6 @@ export function isSafeInternalPath(value) {
   } catch {
     return false;
   }
-}
-
-export function normalizeTermsText(value) {
-  return String(value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-export function normalizeTermsFilterState(query, category, validCategories) {
-  const categories = validCategories instanceof Set ? validCategories : new Set(validCategories || []);
-  const normalizedCategory = typeof category === 'string' && categories.has(category) ? category : 'all';
-
-  return {
-    query: typeof query === 'string' ? query.trim() : '',
-    category: normalizedCategory,
-  };
-}
-
-export function getTermNameMatchRank(term, query) {
-  const search = normalizeTermsText(query);
-  if (!search) return Number.POSITIVE_INFINITY;
-
-  const fieldRank = (value, offset) => {
-    const field = normalizeTermsText(value);
-    if (!field) return Number.POSITIVE_INFINITY;
-    if (field === search) return offset;
-    if (field.startsWith(search)) return offset + 1;
-    return field.includes(search) ? offset + 2 : Number.POSITIVE_INFINITY;
-  };
-
-  return Math.min(
-    fieldRank(term?.term, 0),
-    fieldRank(term?.fullName, 3),
-    ...(term?.aliases || []).map((alias) => fieldRank(alias, 6)),
-  );
-}
-
-export function matchesGlossaryRelatedContent(term, query) {
-  const search = normalizeTermsText(query);
-  if (!search) return false;
-
-  const fields = [term?.summary];
-  return fields.some((field) => typeof field === 'string' && normalizeTermsText(field).includes(search));
-}
-
-export function groupGlossarySearchResults(entries, query, category, validCategories) {
-  const state = normalizeTermsFilterState(query, category, validCategories);
-  const search = normalizeTermsText(state.query);
-  const scopedEntries = entries.filter((term) => state.category === 'all' || term.category === state.category);
-
-  if (!search) {
-    return {
-      state,
-      isSearch: false,
-      strongest: [],
-      related: [],
-      results: scopedEntries,
-    };
-  }
-
-  const rankedEntries = scopedEntries.map((term, index) => ({
-    term,
-    index,
-    rank: getTermNameMatchRank(term, search),
-  }));
-  const strongest = rankedEntries
-    .filter(({ rank }) => Number.isFinite(rank))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
-    .map(({ term }) => term);
-  const strongestIds = new Set(strongest.map((term) => term.id));
-  const related = rankedEntries
-    .filter(({ term }) => !strongestIds.has(term.id) && matchesGlossaryRelatedContent(term, search))
-    .map(({ term }) => term);
-
-  return {
-    state,
-    isSearch: true,
-    strongest,
-    related,
-    results: [...strongest, ...related],
-  };
-}
-
-export function filterGlossary(entries, query, category, validCategories) {
-  return groupGlossarySearchResults(entries, query, category, validCategories).results;
 }
 
 // ---------- frontmatter 校验 ----------
@@ -282,8 +231,131 @@ function fileHash(content) {
 // 在构建流程中填充
 const assetMap = new Map();
 
+const SEARCH_PAGE_DESCRIPTIONS = {
+  '/': '具身智能、机器人项目与最新技术笔记',
+  '/blog/': 'ROS 2、OpenClaw 与机器人系统排错记录',
+  '/projects/': '机器人项目、系统架构与开发进度',
+  '/about/': '个人履历、技能方向与获奖经历',
+  '/friends/': '技术博客与机器人开发者友链',
+  '/terms/': 'ROS 2、导航、控制与 AI Agent 专业术语',
+  '/jobs/': '杭州机器人实习求职专栏：技术栈需求优先级与岗位 JD',
+};
+
+export function createSearchIndex() {
+  const pages = config.nav.map((item) => ({
+    type: 'page',
+    title: item.label,
+    description: SEARCH_PAGE_DESCRIPTIONS[item.href] || '',
+    href: item.href,
+    keywords: [item.label, SEARCH_PAGE_DESCRIPTIONS[item.href] || ''],
+  }));
+  const postItems = posts.map((post) => ({
+    type: 'post',
+    title: post.data.title,
+    description: post.data.description || '',
+    href: `/blog/${post.slug}/`,
+    keywords: [
+      config.categories[post.data.category]?.label || '',
+      ...(post.data.tags || []),
+    ],
+  }));
+  const projectItems = projects.map((project) => ({
+    type: 'project',
+    title: project.data.title,
+    description: project.data.description || '',
+    href: `/projects/${project.slug}/`,
+    keywords: [project.data.status || '', ...(project.data.tags || [])],
+  }));
+  const termItems = glossary.map((term) => ({
+    type: 'term',
+    title: term.term,
+    description: term.fullName ? `${term.fullName} · ${term.summary}` : term.summary,
+    href: `/terms/#${term.id}`,
+    keywords: [term.fullName || '', term.category || '', ...(term.aliases || [])],
+  }));
+
+  return [...pages, ...postItems, ...projectItems, ...termItems];
+}
+
+const CLIENT_ENTRIES = {
+  navigation: path.join(SRC, 'client', 'navigation.mjs'),
+  site: path.join(SRC, 'client', 'site.jsx'),
+  terms: path.join(SRC, 'client', 'terms-explorer.jsx'),
+  jobs: path.join(SRC, 'client', 'jobs-explorer.jsx'),
+};
+let modulePreloads = {};
+
+function buildClientAssets(tmpDist) {
+  const result = buildSync({
+    entryPoints: CLIENT_ENTRIES,
+    outdir: path.join(tmpDist, 'assets'),
+    bundle: true,
+    splitting: true,
+    minify: true,
+    format: 'esm',
+    platform: 'browser',
+    target: ['es2020'],
+    jsx: 'automatic',
+    legalComments: 'none',
+    entryNames: '[name]-[hash]',
+    chunkNames: 'chunk-[hash]',
+    metafile: true,
+    define: {
+      'process.env.NODE_ENV': '"production"',
+    },
+  });
+
+  const entryKeys = new Map(
+    Object.entries(CLIENT_ENTRIES).map(([key, entryPoint]) => [path.resolve(entryPoint), `${key}.js`]),
+  );
+  const built = [];
+  for (const [outputPath, output] of Object.entries(result.metafile.outputs)) {
+    const filename = path.basename(outputPath);
+    built.push(filename);
+    if (!output.entryPoint) continue;
+
+    const assetKey = entryKeys.get(path.resolve(output.entryPoint));
+    if (assetKey) assetMap.set(assetKey, filename);
+  }
+
+  for (const key of Object.keys(CLIENT_ENTRIES)) {
+    if (!assetMap.has(`${key}.js`)) throw new Error(`客户端入口构建失败: ${key}`);
+  }
+  const outputs = new Map(Object.entries(result.metafile.outputs).map(([file, output]) => [path.resolve(file), output]));
+  modulePreloads = {};
+  for (const entry of ['terms.js', 'jobs.js']) {
+    const files = new Set();
+    const collect = (file) => {
+      if (files.has(file)) return;
+      for (const item of outputs.get(file)?.imports || []) {
+        if (!item.external) collect(path.resolve(item.path));
+      }
+      files.add(file);
+    };
+    collect(path.resolve(tmpDist, 'assets', assetMap.get(entry)));
+    modulePreloads[`/assets/${assetMap.get(entry)}`] = [...files].map((file) => `/assets/${path.basename(file)}`);
+  }
+
+  return built;
+}
+
 // ---------- 布局 ----------
-const themeInit = `<script>(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();</script>`;
+const themeInit = `<script>(function(){try{var t=localStorage.getItem('theme');var d=t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}})();</script>`;
+const themeBootstrapCss = `<style id="theme-bootstrap">html{background:#faf8f5;color-scheme:light}html.dark{background:#141210;color-scheme:dark}html,body{min-height:100%}</style>`;
+let navigationVersion = '';
+const sectionPaths = config.nav.map((item) => item.href);
+
+function navigationManifest() {
+  return {
+    version: navigationVersion,
+    preloads: modulePreloads,
+    routes: Object.fromEntries(sectionPaths.map((route) => [
+      route,
+      route === '/terms/' ? [`/assets/${assetMap.get('terms.js')}`]
+        : route === '/jobs/' ? [`/assets/${assetMap.get('jobs.js')}`] : [],
+    ])),
+  };
+}
 
 // 字体 @font-face 声明(在构建时注入实际路径)
 let fontFaceCss = '';
@@ -318,7 +390,7 @@ export function head(title, description, options = {}) {
   // 使用哈希后的 CSS 路径(如果存在),否则回退到固定路径
   const cssHref = assetMap.get('global.css') ? `/assets/${assetMap.get('global.css')}` : '/styles/global.css';
 
-  return `<!doctype html><html lang="${config.site.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/png" href="/logo.png"><link rel="icon" type="image/png" sizes="32x32" href="/logo.png"><title>${escapeHtml(pageTitle)}</title>
+  return `<!doctype html><html lang="${config.site.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${themeInit}${themeBootstrapCss}<meta name="color-scheme" content="light dark"><link rel="icon" type="image/png" href="/logo.png"><link rel="icon" type="image/png" sizes="32x32" href="/logo.png"><title>${escapeHtml(pageTitle)}</title>
 <link rel="canonical" href="${escapeHtml(canonical)}">
 <meta name="description" content="${escapeHtml(desc)}">
 <meta property="og:type" content="${isArticle ? 'article' : 'website'}">
@@ -333,8 +405,10 @@ export function head(title, description, options = {}) {
 <meta name="twitter:title" content="${escapeHtml(pageTitle)}">
 <meta name="twitter:description" content="${escapeHtml(desc)}">
 <meta name="twitter:image" content="${escapeHtml(imageUrl)}">
+<script id="site-navigation-data" type="application/json">${safeJsonForScript(navigationManifest())}</script>
+<script>(${installNavigationGate.toString()})(${safeJsonForScript(sectionPaths)});</script>
 ${fontFaceCss}
-<link rel="stylesheet" href="${cssHref}">${themeInit}
+<link rel="stylesheet" href="${cssHref}">
 ${jsonLdScripts(options.jsonLd)}
 <link rel="alternate" type="application/rss+xml" title="${escapeHtml(siteName)}" href="/rss.xml"></head>`;
 }
@@ -353,7 +427,7 @@ function header(active) {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
   </button>`;
   
-  return `<header class="site-header" id="site-header"><div class="inner container"><a class="brand" href="/"><img src="/logo.png" alt="logo"><span>${escapeHtml(siteName)}</span></a><nav class="nav" id="main-nav">${nav}</nav>${toggleBtn}${mobileToggle}</div></header>`;
+  return `<header class="site-header" id="site-header"><div class="inner container"><a class="brand" href="/"><img src="/logo.png" alt="logo"><span>${escapeHtml(siteName)}</span></a><nav class="nav" id="main-nav">${nav}</nav><div id="global-search-root" class="global-search-root"></div>${toggleBtn}${mobileToggle}</div></header>`;
 }
 
 function footer() {
@@ -365,32 +439,42 @@ function footer() {
 function layout(opts) {
   const { title, description, active, body, jsonLd, type, pageUrl, imageUrl, canonical } = opts;
   const headOpts = { type, pageUrl, imageUrl, canonical, jsonLd };
+  const clientScript = ['navigation.js', 'site.js']
+    .map((key) => (assetMap.get(key) ? `<script type="module" src="/assets/${assetMap.get(key)}"></script>` : ''))
+    .filter(Boolean)
+    .join('\n');
 
   return `${head(title, description, headOpts)}
 <body>
 <a href="#main-content" class="skip-link">跳到正文</a>
-<div class="progress-bar" id="progress-bar"></div>
 ${header(active)}
-<main class="container" id="main-content">${body}</main>
+<main class="container" id="main-content" data-page-path="${escapeHtml(pageUrl || '/')}">${body}</main>
 ${footer()}
+<div id="navigation-status" class="navigation-status" role="status" aria-live="polite" hidden><span data-nav-message></span><button type="button" data-nav-retry hidden>重试</button><button type="button" data-nav-refresh hidden>刷新页面</button></div>
 <script>
 document.addEventListener('DOMContentLoaded',function(){
   /* Theme toggle via event delegation */
+  var themeSwitchFrame=0;
   var toggle=function(){
-    var isDark=document.documentElement.classList.toggle('dark');
+    var root=document.documentElement;
+    root.classList.add('theme-switching');
+    var isDark=root.classList.toggle('dark');
+    var switchFrame=++themeSwitchFrame;
     localStorage.setItem('theme',isDark?'dark':'light');
     var btn=document.getElementById('theme-toggle');
     if(btn){
       btn.setAttribute('aria-pressed',String(isDark));
       btn.setAttribute('aria-label',isDark?'切换到浅色主题':'切换到深色主题');
     }
+    var clearSwitch=function(){if(switchFrame===themeSwitchFrame){root.classList.remove('theme-switching');}};
+    if(window.requestAnimationFrame){
+      requestAnimationFrame(function(){requestAnimationFrame(clearSwitch);});
+    }else{
+      setTimeout(clearSwitch,0);
+    }
+    setTimeout(clearSwitch,120);
   };
   document.addEventListener('click',function(e){if(e.target.closest('#theme-toggle')){e.preventDefault();toggle();}});
-  /* Reading progress bar */
-  var pb=document.getElementById('progress-bar');
-  if(pb){window.addEventListener('scroll',function(){var sc=window.scrollY,dh=document.documentElement.scrollHeight-window.innerHeight;pb.style.width=((sc/dh)*100)+'%';},{passive:true});}
-  /* Smooth scroll to top on home link */
-  var hl=document.querySelector('.nav a.active[href="/"]');if(hl)hl.addEventListener('click',function(e){if(location.pathname==='/'){e.preventDefault();window.scrollTo({top:0,behavior:'smooth'});}});
   /* Header scroll shadow */
   var hd=document.getElementById('site-header');if(hd)window.addEventListener('scroll',function(){hd.classList.toggle('scrolled',window.scrollY>10);},{passive:true});
   /* Mobile nav: keyboard dismissal and focus restoration */
@@ -407,54 +491,11 @@ document.addEventListener('DOMContentLoaded',function(){
     document.addEventListener('keydown',function(e){if(e.key==='Escape'&&nv.classList.contains('open')){e.preventDefault();setNavOpen(false,true);}});
     document.addEventListener('click',function(e){if(nv.classList.contains('open')&&!nv.contains(e.target)&&!nt.contains(e.target)){setNavOpen(false,true);}});
   }
-  /* Agent health: the profile card must reflect the real backend state. */
-  var agentStatus=document.querySelector('[data-agent-status]');
-  var agentStatusDot=document.querySelector('[data-agent-status-dot]');
-  if(agentStatus){
-    var agentStatusText=agentStatus.querySelector('span');
-    var setAgentStatus=function(state,label){
-      agentStatus.setAttribute('data-state',state);
-      if(agentStatusDot){agentStatusDot.setAttribute('data-state',state);}
-      if(agentStatusText){agentStatusText.textContent=label;}
-    };
-    var localPreview=/^(localhost|127(?:\\.\\d{1,3}){3}|\\[::1\\])$/.test(location.hostname);
-    if(localPreview||location.protocol==='file:'){
-      setAgentStatus('offline','部署后检测助手状态');
-    }else{
-      var healthController=typeof AbortController==='function'?new AbortController():null;
-      var healthTimer=setTimeout(function(){if(healthController){healthController.abort();}},3500);
-      fetch('/api/health',{
-        method:'GET',
-        headers:{Accept:'text/plain'},
-        cache:'no-store',
-        credentials:'same-origin',
-        signal:healthController?healthController.signal:undefined
-      }).then(function(response){
-        if(!response.ok){throw new Error('health '+response.status);}
-        return response.text();
-      }).then(function(body){
-        if(body.trim().toLowerCase()!=='ok'){throw new Error('unexpected health response');}
-        setAgentStatus('online','助手在线');
-      }).catch(function(){
-        setAgentStatus('offline','助手暂时离线');
-      }).finally(function(){clearTimeout(healthTimer);});
-    }
-  }
-  var profileCard=document.querySelector('.rx-profile');
-  var profileToggle=profileCard&&profileCard.querySelector('.rxp-toggle');
-  if(profileCard&&profileToggle){
-    profileToggle.addEventListener('click',function(){
-      var expanded=profileCard.classList.toggle('rx-profile-details-open');
-      profileToggle.setAttribute('aria-expanded',String(expanded));
-      profileToggle.textContent=expanded?'收起方向与技能':'查看方向与技能';
-    });
-  }
-  /* Scroll reveal animation */
-  if(!window.matchMedia('(prefers-reduced-motion:reduce)').matches){var es=document.querySelectorAll('.section,.card,.spotlight,.award-card,.rx-profile,.rx-card');es.forEach(function(e){e.classList.add('reveal');});var showAll=function(){es.forEach(function(e){e.classList.add('visible');});};var ob=new IntersectionObserver(function(en){en.forEach(function(x){if(x.isIntersecting){x.target.classList.add('visible');ob.unobserve(x.target);}});},{threshold:0.08,rootMargin:'0px 0px -40px 0px'});es.forEach(function(e){ob.observe(e);});setTimeout(showAll,900);}
   /* Initialize theme button ARIA state */
   (function(){var btn=document.getElementById('theme-toggle');if(btn){btn.setAttribute('aria-pressed',String(document.documentElement.classList.contains('dark')));btn.setAttribute('aria-label',document.documentElement.classList.contains('dark')?'切换到浅色主题':'切换到深色主题');}})();
 });
 </script>
+${clientScript}
 <script src="/agent-widget.js" defer></script>
 </body></html>`;
 }
@@ -545,18 +586,6 @@ function awardItem(a) {
   }${a.level ? `<span class="lvl">${escapeHtml(a.level)}</span>` : ''}</div>${
     a.desc ? `<div style="color:var(--text-soft);font-size:14px">${escapeHtml(a.desc)}</div>` : ''
   }</div>`;
-}
-
-function postCard(p) {
-  const d = p.data;
-  const cat = config.categories[d.category] || config.categories.note;
-  const tags = (d.tags || [])
-    .slice(0, 4)
-    .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
-    .join('');
-  return `<a class="card" href="/blog/${p.slug}/" data-cat="${escapeHtml(d.category)}" data-tags="${escapeHtml((d.tags || []).join(' '))}"><div class="meta"><span class="badge-cat badge-${escapeHtml(d.category)}">${escapeHtml(cat.label)}</span><span>${fmt(d.pubDate)}</span></div><h2>${escapeHtml(d.title)}</h2><p class="desc">${escapeHtml(d.description || '')}</p>${
-    tags ? `<div class="meta">${tags}</div>` : ''
-  }</a>`;
 }
 
 function projectCard(p) {
@@ -694,169 +723,20 @@ function blogIndex() {
     });
   }
 
-  const allTags = [...new Set(posts.flatMap((p) => p.data.tags || []))].sort();
-  const validCategories = Object.keys(config.categories);
-
-  // 将文章数据序列化到 JS 中(用于精确标签匹配)
-  const postsData = posts.map((p) => ({
-    slug: p.slug,
-    category: p.data.category,
-    tags: p.data.tags || [],
-  }));
 
   const body = `
   <section class="rx-blog-index" style="margin-top:28px"><h1 style="font-size:26px;margin:0 0 4px">学习笔记</h1><p style="color:var(--text-mute);margin:0 0 16px">bug 是怎么解决的、技术是怎么学起来的 —— 都记在这里。</p>
   <div class="rx-filter-bar">
   <div id="filters" role="group" aria-label="筛选选项">
-    <button data-filter="all" class="active" role="button" aria-pressed="true">全部</button>
     ${Object.entries(config.categories)
       .map(([k, v]) => `<button data-filter="${k}" role="button" aria-pressed="false">${escapeHtml(v.label)}</button>`)
       .join('')}
-    <button data-filter="clear" role="button" style="margin-left:auto">清除筛选</button>
   </div>
-  ${allTags.length ? `<div class="share rx-tag-filter" role="group" aria-label="标签筛选">${allTags.map((t) => `<a class="tag tag-filter" href="/blog/?tag=${encodeURIComponent(t)}" role="button" aria-pressed="false" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</a>`).join('')}</div>` : ''}
+  <details class="rx-filter-more"><summary><span class="rx-filter-more-open">展开</span><span class="rx-filter-more-close">收起</span></summary><p>暂无更多筛选</p></details>
   <div role="status" aria-live="polite" id="filter-result" class="rx-filter-count">共 ${posts.length} 篇笔记</div>
   </div>
   <div class="grid rx-grid" id="post-grid" style="margin-top:18px">${posts.map((p) => renderPostCard(p)).join('')}</div>
-  <div id="empty-state" style="display:none;text-align:center;padding:40px 20px;color:var(--text-mute);"><p>没有找到符合条件的文章</p><a href="/blog/" class="btn btn-outline" style="margin-top:12px;display:inline-flex;">清除筛选</a></div></section>
-  <script>
-  (function(){
-    // 文章数据(从服务端注入,用于精确标签匹配)
-    var POSTS_DATA = ${JSON.stringify(postsData)};
-    var VALID_CATEGORIES = ${JSON.stringify(validCategories)};
-
-    var grid = document.getElementById('post-grid');
-    var emptyState = document.getElementById('empty-state');
-    var btns = document.querySelectorAll('#filters button[data-filter]');
-    var resultStatus = document.getElementById('filter-result');
-    var allCards = grid.querySelectorAll('.card');
-
-    // ---- 纯函数: 筛选逻辑(与 build.mjs 中可测试的函数一致) ----
-    function tagMatchesExact(cardTags, filterTag) {
-      return cardTags.some(function(t) { return t === filterTag; });
-    }
-
-    function matchesFilter(post, cat, tag) {
-      if (cat && cat !== 'all' && post.category !== cat) return false;
-      if (tag && !tagMatchesExact(post.tags || [], tag)) return false;
-      return true;
-    }
-
-    function getFilteredSlugs(cat, tag) {
-      return POSTS_DATA.filter(function(p) { return matchesFilter(p, cat, tag); }).map(function(p) { return p.slug; });
-    }
-
-    function getParams() { return new URLSearchParams(location.search); }
-
-    function applyFilter(cat, tag) {
-      var visible = 0;
-      var filteredSlugs = getFilteredSlugs(cat, tag);
-
-      allCards.forEach(function(x) {
-        var slug = x.getAttribute('href') ? x.getAttribute('href').replace(/^\\/blog\\//, '').replace(/\\/$/, '') : '';
-        var show = filteredSlugs.indexOf(slug) !== -1;
-        x.style.display = show ? '' : 'none';
-        if (show) visible++;
-      });
-
-      // 更新分类按钮状态
-      btns.forEach(function(b) {
-        var f = b.dataset.filter;
-        var isActive = f === cat || (f === 'all' && (!cat || cat === ''));
-        b.classList.toggle('active', isActive);
-        b.setAttribute('aria-pressed', String(isActive));
-      });
-
-      // 更新标签按钮状态(精确匹配)
-      document.querySelectorAll('.tag-filter').forEach(function(ta) {
-        var t = ta.getAttribute('data-tag');
-        ta.setAttribute('aria-pressed', String(t === tag));
-      });
-
-      // 空状态处理
-      if (emptyState) {
-        emptyState.style.display = visible === 0 ? '' : 'none';
-        grid.style.display = visible === 0 ? 'none' : '';
-      }
-
-      // ARIA 播报
-      if (resultStatus) {
-        if (visible === 0) {
-          resultStatus.textContent = '没有找到符合条件的文章';
-        } else {
-          resultStatus.textContent = '显示 ' + visible + ' 篇文章';
-        }
-      }
-    }
-
-    function filterUrl(cat, tag) {
-      var params = new URLSearchParams();
-      if (cat && cat !== 'all') params.set('cat', cat);
-      if (tag) params.set('tag', tag);
-      var qs = params.toString();
-      return '/blog/' + (qs ? '?' + qs : '');
-    }
-
-    function updateUrl(cat, tag) {
-      // 使用 pushState 支持浏览器前进/后退
-      history.pushState({ cat: cat, tag: tag }, '', filterUrl(cat, tag));
-    }
-
-    function clearAllFilters() {
-      applyFilter('', '');
-      updateUrl('', '');
-    }
-
-    // ---- 事件绑定 ----
-
-    // 分类按钮点击
-    btns.forEach(function(b) {
-      b.addEventListener('click', function() {
-        var cat = b.dataset.filter;
-        var currentTag = getParams().get('tag') || '';
-        if (cat === 'clear') {
-          clearAllFilters();
-          return;
-        }
-        applyFilter(cat, currentTag);
-        updateUrl(cat, currentTag);
-      });
-    });
-
-    // 标签点击(精确匹配)
-    document.querySelectorAll('.tag-filter').forEach(function(ta) {
-      ta.addEventListener('click', function(e) {
-        e.preventDefault();
-        var tag = ta.getAttribute('data-tag');
-        var currentCat = getParams().get('cat') || '';
-        applyFilter(currentCat, tag);
-        updateUrl(currentCat, tag);
-      });
-    });
-
-    // 初始化: 从 URL 读取初始状态
-    var initCat = getParams().get('cat') || '';
-    var initTag = getParams().get('tag') || '';
-
-    // 未知分类回退到全部，并同步清理地址栏中的无效参数。
-    if (initCat && !VALID_CATEGORIES.includes(initCat)) {
-      console.warn('[filter] 未知分类: "' + initCat + '", 回退到全部');
-      initCat = '';
-    }
-    // 未知标签显示空结果，canonical 仍保持 /blog/。
-    applyFilter(initCat, initTag);
-    history.replaceState({ cat: initCat, tag: initTag }, '', filterUrl(initCat, initTag));
-
-    // popstate: 浏览器前进/后退恢复筛选状态。
-    window.addEventListener('popstate', function(e) {
-      var p = getParams();
-      var stateCat = (e.state && e.state.cat) || p.get('cat') || '';
-      var stateTag = (e.state && e.state.tag) || p.get('tag') || '';
-      if (stateCat && !VALID_CATEGORIES.includes(stateCat)) stateCat = '';
-      applyFilter(stateCat, stateTag);
-    });
-  })();
-  </script>`;
+  <div id="empty-state" style="display:none;text-align:center;padding:40px 20px;color:var(--text-mute);"><p>没有找到符合条件的文章</p></div></section>`;
 
   return layout({
     title: '学习笔记',
@@ -873,7 +753,7 @@ function postPage(p, prev, next) {
   const cat = config.categories[d.category] || config.categories.note;
   const pageUrl = `${config.site.url}/blog/${p.slug}/`;
   const tags = (d.tags || [])
-    .map((t) => `<a class="tag" href="/blog/?tag=${encodeURIComponent(t)}">#${escapeHtml(t)}</a>`)
+    .map((t) => `<span class="tag">#${escapeHtml(t)}</span>`)
     .join('');
 
   const breadcrumbJsonLd = generateJsonLd('breadcrumb', {
@@ -892,9 +772,10 @@ function postPage(p, prev, next) {
   const jsonLd = [blogPostJsonLd, breadcrumbJsonLd].filter(Boolean);
   const metaHtml = PostMeta({ post: p });
   const relatedHtml = RelatedPosts({ currentSlug: p.slug, posts, limit: 3 });
+  const hasToc = (p.html.match(/<h[23]\b/g) || []).length >= 2;
 
   const body = `
-  <article class="rx-article" style="margin-top:24px"><div class="post-head">${metaHtml}<h1>${escapeHtml(d.title)}</h1><p style="color:var(--text-soft);margin:6px 0 0">${escapeHtml(d.description || '')}</p>${
+  <div class="article-layout${hasToc ? ' article-layout--with-toc' : ''}"><article class="rx-article" style="margin-top:24px"><div class="post-head">${metaHtml}<h1>${escapeHtml(d.title)}</h1><p style="color:var(--text-soft);margin:6px 0 0">${escapeHtml(d.description || '')}</p>${
     tags ? `<div class="post-meta" style="margin-top:10px">${tags}</div>` : ''
   }</div><div class="prose">${p.html}</div>${shareHtml(d.title, pageUrl)}<nav class="pager">${
     prev
@@ -904,7 +785,7 @@ function postPage(p, prev, next) {
     next
       ? `<a href="/blog/${next.slug}/" style="text-align:right"><div class="label">下一篇 →</div><div class="ttl">${escapeHtml(next.data.title)}</div></a>`
       : '<span></span>'
-  }</nav>${relatedHtml}${commentHtml()}</article>`;
+  }</nav>${relatedHtml}${commentHtml()}</article>${hasToc ? '<aside id="article-navigator-root" class="article-navigator-root"></aside>' : ''}</div>`;
 
   return layout({
     title: d.title,
@@ -967,9 +848,10 @@ function projectPage(p) {
   });
   
   const jsonLd = [workJsonLd, breadcrumbJsonLd].filter(Boolean);
+  const hasToc = (p.html.match(/<h[23]\b/g) || []).length >= 2;
 
   const body = `
-  <article style="margin-top:24px"><div class="post-head"><div class="post-meta"><span class="tag">${escapeHtml(
+  <div class="article-layout${hasToc ? ' article-layout--with-toc' : ''}"><article class="rx-article" style="margin-top:24px"><div class="post-head"><div class="post-meta"><span class="tag">${escapeHtml(
     d.status || ''
   )}</span><span>${fmt(d.date)}</span>${d.role ? `<span>角色:${escapeHtml(d.role)}</span>` : ''}</div><h1>${escapeHtml(
     d.title
@@ -979,7 +861,7 @@ function projectPage(p) {
           .map((t) => `<span class="tag">#${escapeHtml(t)}</span>`)
           .join('')}</div>`
       : ''
-  }</div>${awards}${linksHtml}<div class="prose">${p.html}</div>${shareHtml(d.title, pageUrl)}${commentHtml()}</article>`;
+  }</div>${awards}${linksHtml}<div class="prose">${p.html}</div>${shareHtml(d.title, pageUrl)}${commentHtml()}</article>${hasToc ? '<aside id="article-navigator-root" class="article-navigator-root"></aside>' : ''}</div>`;
   
   return layout({ 
     title: d.title, 
@@ -1107,7 +989,7 @@ function termsPage() {
 
   const jsonLd = [definedTermSetJsonLd, breadcrumbJsonLd].filter(Boolean);
 
-  // Build term cards HTML with safe escaping
+  // Build term cards HTML with safe escaping (no-JS readable fallback)
   const termCards = glossary.map((t) => {
     const detailsHtml = (t.details && t.details.length)
       ? `<details class="term-details"><summary>详细解释</summary><ul>${t.details.map(d => `<li>${escapeHtml(d)}</li>`).join('')}</ul></details>`
@@ -1144,8 +1026,14 @@ function termsPage() {
     </article>`;
   }).join('');
 
+  const termsDataPayload = {
+    terms: glossary,
+    categories: categoryList,
+    perPage: TERMS_PER_PAGE,
+  };
+
   const body = `
-  <section class="terms-page">
+  <section class="terms-page" id="terms-explorer-root">
     <h1 class="terms-title">专业术语</h1>
     <p class="terms-intro">面向机器人、ROS 2、导航、语音交互与具身智能学习者的可查询术语参考。</p>
 
@@ -1195,667 +1083,7 @@ function termsPage() {
     <!-- 分页导航（由脚本根据当前筛选结果渲染） -->
     <nav id="terms-pagination" class="terms-pagination" aria-label="术语分页" hidden></nav>
   </section>
-
-  <script>
-  (function(){
-    var glossaryData = ${safeJsonForScript(glossary)};
-    var VALID_CATEGORIES = ${safeJsonForScript(categoryList)};
-    var TERMS_PER_PAGE = 10;
-    var getCompactPaginationItems = ${getCompactPaginationItems.toString()};
-    var parsePaginationJump = ${parsePaginationJump.toString()};
-
-    var searchInput = document.getElementById('terms-search');
-    var catBtns = document.querySelectorAll('#terms-categories button[data-category]');
-    var termsResults = document.getElementById('terms-results');
-    var termsList = document.getElementById('terms-list');
-    var termsPrimarySection = document.getElementById('terms-primary-section');
-    var termsPrimaryList = document.getElementById('terms-primary-list');
-    var termsRelatedSection = document.getElementById('terms-related-section');
-    var termsRelatedList = document.getElementById('terms-related-list');
-    var termsEmpty = document.getElementById('terms-empty');
-    var termsCount = document.getElementById('terms-count');
-    var clearBtn = document.getElementById('terms-clear-btn');
-    var termsPagination = document.getElementById('terms-pagination');
-    var siteHeader = document.getElementById('site-header');
-    var allTermCards = termsList ? Array.prototype.slice.call(termsList.querySelectorAll('.term-card')) : [];
-    var termCardsById = Object.create(null);
-    allTermCards.forEach(function(card) {
-      termCardsById[card.getAttribute('id')] = card;
-    });
-    var currentPage = 1;
-    var filteredTerms = [];
-    var currentResultGroup = {
-      isSearch: false,
-      strongest: [],
-      related: [],
-      results: glossaryData.slice()
-    };
-
-    /* ---- 动态顶栏高度检测 ---- */
-    function updateHeaderHeight() {
-      if (siteHeader && siteHeader.getBoundingClientRect) {
-        var h = Math.round(siteHeader.getBoundingClientRect().height);
-        if (h > 0) {
-          document.documentElement.style.setProperty('--header-height', h + 'px');
-        }
-      }
-    }
-    updateHeaderHeight();
-    if (siteHeader && typeof ResizeObserver !== 'undefined') {
-      try {
-        var ro = new ResizeObserver(updateHeaderHeight);
-        ro.observe(siteHeader);
-      } catch(e) {
-        window.addEventListener('resize', updateHeaderHeight, { passive: true });
-      }
-    } else {
-      window.addEventListener('resize', updateHeaderHeight, { passive: true });
-    }
-
-    /* ---- Hash 定位与闪烁提醒 ---- */
-    var liveRegion = null;
-    function getLiveRegion() {
-      if (!liveRegion) {
-        liveRegion = document.createElement('div');
-        liveRegion.setAttribute('aria-live', 'polite');
-        liveRegion.setAttribute('aria-atomic', 'true');
-        liveRegion.style.cssText = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
-        document.body.appendChild(liveRegion);
-      }
-      return liveRegion;
-    }
-
-    function announce(msg) {
-      getLiveRegion().textContent = msg;
-    }
-
-    function isReducedMotion() {
-      return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    }
-
-    var _pulseTimer = null;
-    var _pulseCard = null;
-    var _termNavigationId = 0;
-
-    function clearTermPulse(card) {
-      if (!card) return;
-      card.classList.remove('term-card--hash-target', 'animate-pulse');
-    }
-
-    function pulseTermCard(card) {
-      if (!card) return;
-      /* 清除之前可能正在进行的动画或静态高亮。 */
-      clearTimeout(_pulseTimer);
-      if (_pulseCard && _pulseCard !== card) clearTermPulse(_pulseCard);
-      clearTermPulse(card);
-      /* 强制 reflow 以重启动画 */
-      void card.offsetWidth;
-      card.classList.add('term-card--hash-target', 'animate-pulse');
-      _pulseCard = card;
-
-      var finish = function() {
-        if (_pulseCard !== card) return;
-        clearTimeout(_pulseTimer);
-        clearTermPulse(card);
-        _pulseCard = null;
-        _pulseTimer = null;
-      };
-
-      /* reduced motion 时保留 1.2s 静态高亮；普通模式由一次 1.2s 动画完成。 */
-      _pulseTimer = setTimeout(finish, 1250);
-      if (!isReducedMotion()) {
-        card.addEventListener('animationend', finish, { once: true });
-      }
-    }
-
-    function termIdFromHash(value) {
-      if (typeof value !== 'string') return '';
-      var raw = value.charAt(0) === '#' ? value.slice(1) : value;
-      if (!raw) return '';
-      try {
-        raw = decodeURIComponent(raw);
-      } catch (e) {
-        return '';
-      }
-      return /^[a-z0-9_-]+$/.test(raw) ? raw : '';
-    }
-
-    /* 等待平滑滚动真正抵达顶栏下方，再开始提示，避免提示在目标仍在屏幕外时结束。 */
-    function waitForTermAlignment(target, navigationId, onReady) {
-      var framesRemaining = 180;
-      var previousTop = null;
-
-      function checkAlignment() {
-        if (navigationId !== _termNavigationId || !target.isConnected) return;
-
-        var targetTop = target.getBoundingClientRect().top;
-        var headerBottom = 0;
-        if (siteHeader && siteHeader.getBoundingClientRect) {
-          headerBottom = siteHeader.getBoundingClientRect().bottom;
-        }
-
-        /* 允许浏览器子像素渲染误差；正常位置为顶栏底部下方 8px。 */
-        var aligned = targetTop >= headerBottom - 2 && targetTop <= headerBottom + 10;
-        var settled = previousTop !== null && Math.abs(targetTop - previousTop) <= 0.5;
-        if ((aligned && settled) || framesRemaining <= 0) {
-          onReady();
-          return;
-        }
-
-        previousTop = targetTop;
-        framesRemaining--;
-        requestAnimationFrame(checkAlignment);
-      }
-
-      requestAnimationFrame(checkAlignment);
-    }
-
-    function scrollToTermFromHash(hash, options) {
-      options = options || {};
-      var termId = termIdFromHash(hash);
-      if (!termId) return false;
-
-      var target = document.getElementById(termId);
-      if (!target) return false;
-
-      /*
-       * 卡片被 hidden 可能有两种原因：筛选没有匹配它，或它只是位于另一页。
-       * 必须用筛选结果判断，不能仅靠 target.hidden，否则跨页关联会被误判。
-       */
-      var targetIndex = filteredTerms.findIndex(function(term) { return term.id === termId; });
-      if (targetIndex === -1) {
-        /* 只有用户主动点击关联时才清除筛选；直接 URL 和历史导航仅播报。 */
-        if (!options.revealHidden) {
-          announce('当前筛选已隐藏该术语');
-          return false;
-        }
-        clearFiltersForTerm();
-        targetIndex = filteredTerms.findIndex(function(term) { return term.id === termId; });
-        if (targetIndex === -1) return false;
-      }
-
-      /* 搜索结果按“最强相关术语 / 相关内容”完整展示，不参与分页。 */
-      var targetPage = currentResultGroup.isSearch ? 1 : Math.floor(targetIndex / TERMS_PER_PAGE) + 1;
-      if (currentPage !== targetPage) applyFilters(targetPage);
-
-      target = document.getElementById(termId);
-      if (!target || target.hidden || target.offsetParent === null) return false;
-      if (options.historyMode) updateUrl(options.historyMode, termId);
-
-      var navigationId = ++_termNavigationId;
-
-      /* scroll-margin-top 统一处理顶栏偏移。 */
-      requestAnimationFrame(function() {
-        if (navigationId !== _termNavigationId) return;
-        target.scrollIntoView({ block: 'start', inline: 'nearest' });
-        var term = glossaryData.find(function(t) { return t.id === termId; });
-        waitForTermAlignment(target, navigationId, function() {
-          if (navigationId !== _termNavigationId) return;
-          pulseTermCard(target);
-          if (term) announce('已定位到术语：' + term.term);
-        });
-      });
-      return true;
-    }
-
-    /* ---- 搜索：术语名优先，摘要命中归入“相关内容” ---- */
-    function normalizeText(s) { return String(s || '').toLowerCase().replace(/\\s+/g, ' ').trim(); }
-
-    function getTermNameMatchRank(term, query) {
-      var search = normalizeText(query);
-      if (!search) return Number.POSITIVE_INFINITY;
-
-      function fieldRank(value, offset) {
-        var field = normalizeText(value);
-        if (!field) return Number.POSITIVE_INFINITY;
-        if (field === search) return offset;
-        if (field.indexOf(search) === 0) return offset + 1;
-        return field.indexOf(search) !== -1 ? offset + 2 : Number.POSITIVE_INFINITY;
-      }
-
-      var rank = Math.min(fieldRank(term.term, 0), fieldRank(term.fullName, 3));
-      (Array.isArray(term.aliases) ? term.aliases : []).forEach(function(alias) {
-        rank = Math.min(rank, fieldRank(alias, 6));
-      });
-      return rank;
-    }
-
-    function matchesRelatedContent(term, query) {
-      var search = normalizeText(query);
-      return Boolean(search && normalizeText(term.summary).indexOf(search) !== -1);
-    }
-
-    function matchesCategory(term, cat) {
-      if (!cat || cat === 'all') return true;
-      return term.category === cat;
-    }
-
-    function groupSearchResults(query, category) {
-      var search = normalizeText(query);
-      var scopedTerms = glossaryData.filter(function(term) { return matchesCategory(term, category); });
-      if (!search) {
-        return {
-          isSearch: false,
-          strongest: [],
-          related: [],
-          results: scopedTerms
-        };
-      }
-
-      var rankedTerms = scopedTerms.map(function(term, index) {
-        return { term: term, index: index, rank: getTermNameMatchRank(term, search) };
-      });
-      var strongest = rankedTerms
-        .filter(function(item) { return Number.isFinite(item.rank); })
-        .sort(function(a, b) { return a.rank - b.rank || a.index - b.index; })
-        .map(function(item) { return item.term; });
-      var strongestIds = new Set(strongest.map(function(term) { return term.id; }));
-      var related = rankedTerms
-        .filter(function(item) { return !strongestIds.has(item.term.id) && matchesRelatedContent(item.term, search); })
-        .map(function(item) { return item.term; });
-
-      return {
-        isSearch: true,
-        strongest: strongest,
-        related: related,
-        results: strongest.concat(related)
-      };
-    }
-
-    function moveCardsTo(container, terms) {
-      if (!container) return;
-      var fragment = document.createDocumentFragment();
-      terms.forEach(function(term) {
-        var card = termCardsById[term.id];
-        if (!card) return;
-        card.hidden = false;
-        fragment.appendChild(card);
-      });
-      container.replaceChildren(fragment);
-    }
-
-    function renderSearchSections(resultGroup) {
-      termsList.hidden = true;
-      moveCardsTo(termsPrimaryList, resultGroup.strongest);
-      moveCardsTo(termsRelatedList, resultGroup.related);
-      if (termsPrimarySection) termsPrimarySection.hidden = resultGroup.strongest.length === 0;
-      if (termsRelatedSection) termsRelatedSection.hidden = resultGroup.related.length === 0;
-    }
-
-    function restorePagedCards(pageIds) {
-      var fragment = document.createDocumentFragment();
-      allTermCards.forEach(function(card) {
-        card.hidden = !pageIds.has(card.getAttribute('id'));
-        fragment.appendChild(card);
-      });
-      termsList.replaceChildren(fragment);
-      if (termsPrimarySection) termsPrimarySection.hidden = true;
-      if (termsRelatedSection) termsRelatedSection.hidden = true;
-    }
-
-    /* ---- 关联链接点击拦截 ---- */
-    if (termsResults) {
-      termsResults.addEventListener('click', function(e) {
-        var link = e.target.closest('.term-link');
-        if (!link) return;
-        var href = link.getAttribute('href');
-        if (!href || href.charAt(0) !== '#') return;
-
-        e.preventDefault();
-        scrollToTermFromHash(href, { revealHidden: true, historyMode: 'push' });
-      });
-    }
-
-    /* ---- hashchange / popstate / 首次加载统一处理 ---- */
-    var _hashNavigationPending = false;
-    function scheduleHashNavigation() {
-      if (_hashNavigationPending) return;
-      _hashNavigationPending = true;
-      requestAnimationFrame(function() {
-        _hashNavigationPending = false;
-        scrollToTermFromHash(location.hash, { revealHidden: false, historyMode: 'replace' });
-      });
-    }
-
-    window.addEventListener('hashchange', scheduleHashNavigation);
-
-    function setActiveCategory(cat) {
-      catBtns.forEach(function(b) {
-        var isActive = b.dataset.category === cat || (cat === 'all' && b.dataset.category === 'all');
-        b.classList.toggle('active', isActive);
-        b.setAttribute('aria-pressed', String(isActive));
-      });
-    }
-
-    function getActiveCategory() {
-      var activeCat = 'all';
-      catBtns.forEach(function(b) {
-        if (b.classList.contains('active')) activeCat = b.dataset.category;
-      });
-      return activeCat;
-    }
-
-    function clampPage(page, totalPages) {
-      var numericPage = Number(page);
-      if (!Number.isSafeInteger(numericPage)) numericPage = 1;
-      return Math.min(Math.max(numericPage, 1), Math.max(totalPages, 1));
-    }
-
-    function renderPagination(totalPages) {
-      if (!termsPagination) return;
-      termsPagination.replaceChildren();
-      if (totalPages <= 1) {
-        termsPagination.hidden = true;
-        return;
-      }
-
-      var fragment = document.createDocumentFragment();
-      function appendPageButton(label, page, options) {
-        var button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'terms-page-btn';
-        button.textContent = label;
-        button.dataset.page = String(page);
-        button.setAttribute('aria-controls', 'terms-results');
-        button.setAttribute('aria-label', options.ariaLabel);
-        if (options.current) {
-          button.setAttribute('aria-current', 'page');
-          button.disabled = true;
-        } else if (options.disabled) {
-          button.disabled = true;
-        }
-        fragment.appendChild(button);
-      }
-
-      function appendEllipsis() {
-        var ellipsis = document.createElement('span');
-        ellipsis.className = 'terms-page-ellipsis';
-        ellipsis.textContent = '…';
-        ellipsis.setAttribute('aria-hidden', 'true');
-        fragment.appendChild(ellipsis);
-      }
-
-      function appendPageJump() {
-        var form = document.createElement('form');
-        form.className = 'terms-page-jump';
-        form.noValidate = true;
-        form.dataset.totalPages = String(totalPages);
-        form.setAttribute('aria-label', '跳至指定页');
-
-        var label = document.createElement('label');
-        label.className = 'terms-page-jump-label';
-        label.htmlFor = 'terms-page-jump-input';
-        label.textContent = '跳至';
-
-        var input = document.createElement('input');
-        input.id = 'terms-page-jump-input';
-        input.className = 'terms-page-jump-input';
-        input.type = 'text';
-        input.inputMode = 'numeric';
-        input.enterKeyHint = 'go';
-        input.autocomplete = 'off';
-        input.spellcheck = false;
-        input.pattern = '[1-9]\\d*';
-        input.placeholder = '页码';
-        input.setAttribute('aria-label', '页码，范围 1 至 ' + totalPages);
-        input.setAttribute('aria-invalid', 'false');
-
-        var suffix = document.createElement('span');
-        suffix.className = 'terms-page-jump-suffix';
-        suffix.textContent = '页';
-        suffix.setAttribute('aria-hidden', 'true');
-
-        var submit = document.createElement('button');
-        submit.type = 'submit';
-        submit.className = 'terms-page-btn terms-page-jump-submit';
-        submit.textContent = '跳转';
-        submit.setAttribute('aria-label', '跳转到输入页码');
-
-        form.appendChild(label);
-        form.appendChild(input);
-        form.appendChild(suffix);
-        form.appendChild(submit);
-        fragment.appendChild(form);
-      }
-
-      appendPageButton('上一页', currentPage - 1, {
-        ariaLabel: '上一页',
-        disabled: currentPage <= 1
-      });
-
-      var pageItems = getCompactPaginationItems(currentPage, totalPages);
-      var lastPage = pageItems.pop();
-      pageItems.forEach(function(item) {
-        if (item === 'ellipsis') {
-          appendEllipsis();
-          return;
-        }
-        appendPageButton(String(item), item, {
-          ariaLabel: '第 ' + item + ' 页',
-          current: item === currentPage
-        });
-      });
-
-      /* 跳页控件按需求放在动态最后一页和“下一页”之前。 */
-      appendPageJump();
-      appendPageButton(String(lastPage), lastPage, {
-        ariaLabel: '第 ' + lastPage + ' 页（最后一页）',
-        current: lastPage === currentPage
-      });
-      appendPageButton('下一页', currentPage + 1, {
-        ariaLabel: '下一页',
-        disabled: currentPage >= totalPages
-      });
-
-      termsPagination.appendChild(fragment);
-      termsPagination.hidden = false;
-    }
-
-    function applyFilters(requestedPage) {
-      var query = searchInput.value.trim();
-      var activeCat = getActiveCategory();
-      currentResultGroup = groupSearchResults(query, activeCat);
-      filteredTerms = currentResultGroup.results;
-
-      var totalCount = filteredTerms.length;
-      if (currentResultGroup.isSearch) {
-        currentPage = 1;
-        renderSearchSections(currentResultGroup);
-
-        if (totalCount > 0) {
-          if (currentResultGroup.strongest.length && currentResultGroup.related.length) {
-            termsCount.textContent = '找到 ' + totalCount + ' 个结果：' + currentResultGroup.strongest.length + ' 个术语名匹配，' + currentResultGroup.related.length + ' 个相关内容';
-          } else if (currentResultGroup.strongest.length) {
-            termsCount.textContent = '找到 ' + totalCount + ' 个术语名匹配';
-          } else {
-            termsCount.textContent = '找到 ' + totalCount + ' 个相关内容（术语名未直接匹配）';
-          }
-        } else {
-          termsCount.textContent = '无匹配结果';
-        }
-
-        termsEmpty.hidden = totalCount !== 0;
-        renderPagination(0);
-        return { totalCount: totalCount, totalPages: totalCount > 0 ? 1 : 0, page: currentPage, isSearch: true };
-      }
-
-      var totalPages = totalCount > 0 ? Math.ceil(totalCount / TERMS_PER_PAGE) : 1;
-      currentPage = clampPage(requestedPage === undefined ? currentPage : requestedPage, totalPages);
-      var firstIndex = (currentPage - 1) * TERMS_PER_PAGE;
-      var pageTerms = filteredTerms.slice(firstIndex, firstIndex + TERMS_PER_PAGE);
-      var pageIds = new Set(pageTerms.map(function(term) { return term.id; }));
-
-      restorePagedCards(pageIds);
-
-      if (totalCount > 0) {
-        var lastIndex = firstIndex + pageTerms.length;
-        termsCount.textContent = '显示 ' + (firstIndex + 1) + '–' + lastIndex + ' / 共 ' + totalCount + ' 个术语，第 ' + currentPage + ' / ' + totalPages + ' 页';
-      } else {
-        termsCount.textContent = '无匹配结果';
-      }
-
-      termsEmpty.hidden = totalCount !== 0;
-      termsList.hidden = totalCount === 0;
-      renderPagination(totalCount > 0 ? totalPages : 0);
-      return { totalCount: totalCount, totalPages: totalPages, page: currentPage, isSearch: false };
-    }
-
-    function clearAll() {
-      searchInput.value = '';
-      setActiveCategory('all');
-      applyFilters(1);
-      updateUrl('push');
-    }
-
-    function clearFiltersForTerm() {
-      searchInput.value = '';
-      setActiveCategory('all');
-      return applyFilters(1);
-    }
-
-    function updateUrl(mode, termId) {
-      var query = searchInput.value.trim();
-      var activeCat = getActiveCategory();
-      var params = new URLSearchParams();
-      if (query) params.set('q', query);
-      if (activeCat && activeCat !== 'all') params.set('category', activeCat);
-      if (!currentResultGroup.isSearch && currentPage > 1) params.set('page', String(currentPage));
-      var qs = params.toString();
-      var safeTermId = termIdFromHash(termId || '');
-      var hash = safeTermId ? '#' + encodeURIComponent(safeTermId) : '';
-      var state = { q: query, category: activeCat || 'all', page: currentResultGroup.isSearch ? 1 : currentPage, term: safeTermId };
-      var url = '/terms/' + (qs ? '?' + qs : '') + hash;
-      if (mode === 'push') {
-        history.pushState(state, '', url);
-      } else {
-        history.replaceState(state, '', url);
-      }
-    }
-
-    function scrollTermsListIntoView() {
-      requestAnimationFrame(function() {
-        var target = currentResultGroup.isSearch && termsResults ? termsResults : termsList;
-        target.scrollIntoView({ block: 'start', inline: 'nearest' });
-      });
-    }
-
-    function changePage(page) {
-      if (currentResultGroup.isSearch) return;
-      var nextPage = clampPage(page, Math.ceil(filteredTerms.length / TERMS_PER_PAGE) || 1);
-      if (nextPage === currentPage) return;
-      applyFilters(nextPage);
-      updateUrl('push');
-      scrollTermsListIntoView();
-    }
-
-    if (termsPagination) {
-      termsPagination.addEventListener('click', function(e) {
-        var button = e.target.closest('.terms-page-btn');
-        if (!button || button.disabled) return;
-        var page = Number(button.dataset.page);
-        if (!Number.isSafeInteger(page)) return;
-        changePage(page);
-      });
-
-      termsPagination.addEventListener('input', function(e) {
-        if (!e.target.matches('.terms-page-jump-input')) return;
-        e.target.setAttribute('aria-invalid', 'false');
-      });
-
-      termsPagination.addEventListener('submit', function(e) {
-        var form = e.target.closest('.terms-page-jump');
-        if (!form) return;
-        e.preventDefault();
-
-        var input = form.querySelector('.terms-page-jump-input');
-        var totalPages = Number(form.dataset.totalPages);
-        var page = parsePaginationJump(input ? input.value : '', totalPages);
-        if (page === null) {
-          if (input) {
-            input.setAttribute('aria-invalid', 'true');
-            input.focus();
-            input.select();
-          }
-          announce('请输入 1 到 ' + totalPages + ' 的整数页码');
-          return;
-        }
-
-        input.setAttribute('aria-invalid', 'false');
-        if (page === currentPage) {
-          announce('当前已是第 ' + page + ' 页');
-          return;
-        }
-        changePage(page);
-      });
-    }
-
-    // Search input: use replaceState to avoid flooding history
-    searchInput.addEventListener('input', function() {
-      applyFilters(1);
-      updateUrl('replace');
-    });
-
-    // Category buttons: use pushState for navigation
-    catBtns.forEach(function(b) {
-      b.addEventListener('click', function() {
-        var cat = b.dataset.category;
-        setActiveCategory(cat);
-        applyFilters(1);
-        updateUrl('push');
-      });
-    });
-
-    // Clear button
-    if (clearBtn) {
-      clearBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        clearAll();
-      });
-    }
-
-    function parsePageParam(rawPage) {
-      if (rawPage === null) return { page: 1, normalized: false };
-      if (!/^[1-9]\d*$/.test(rawPage)) return { page: 1, normalized: true };
-      var page = Number(rawPage);
-      if (!Number.isSafeInteger(page)) return { page: 1, normalized: true };
-      /* 第 1 页统一不保留 page 参数，URL 更简洁、可预测。 */
-      return { page: page, normalized: page === 1 };
-    }
-
-    // Initialize from URL params
-    function initFromUrl() {
-      var params = new URLSearchParams(location.search);
-      var q = params.get('q') || '';
-      var cat = params.get('category') || '';
-      var pageInfo = parsePageParam(params.get('page'));
-      var normalized = pageInfo.normalized;
-
-      /* 搜索模式完整展示分区结果，因此 page 参数没有语义，统一去掉。 */
-      if (q.trim() && params.has('page')) normalized = true;
-
-      // Unknown category fallback
-      if (cat && !VALID_CATEGORIES.includes(cat)) {
-        cat = '';
-        normalized = true;
-      }
-
-      searchInput.value = q;
-      setActiveCategory(cat || 'all');
-      var result = applyFilters(pageInfo.page);
-      if (result.page !== pageInfo.page) normalized = true;
-      if (normalized) updateUrl('replace', termIdFromHash(location.hash));
-    }
-
-    initFromUrl();
-    scheduleHashNavigation();
-
-    // 浏览器前进/后退：先恢复筛选状态，再处理 hash 定位；同一帧内会自动去重。
-    window.addEventListener('popstate', function() {
-      initFromUrl();
-      scheduleHashNavigation();
-    });
-  })();
-  </script>`;
+  <script id="terms-data" type="application/json">${safeJsonForScript(termsDataPayload)}</script>`;
 
   return layout({
     title: '专业术语',
@@ -1863,7 +1091,108 @@ function termsPage() {
     active: '/terms/',
     body,
     jsonLd,
-    pageUrl: '/terms/'
+    pageUrl: '/terms/',
+  });
+}
+
+// ---------- 求职专栏页面 ----------
+function jobsPage() {
+  const { techStack, positions, dataAsOf } = jobsData;
+  const stackById = new Map(techStack.map((item) => [item.id, item]));
+
+  const breadcrumbJsonLd = generateJsonLd('breadcrumb', {
+    items: [
+      { name: '首页', url: config.site.url + '/' },
+      { name: '求职专栏', url: config.site.url + '/jobs/' }
+    ]
+  });
+
+  // no-JS 可读降级:板块面板全量渲染(岗位面板默认 hidden,noscript 时展开)。
+  const stackCards = techStack.map((item) => {
+    const relatedHtml = (item.related || []).length
+      ? `<div class="term-related"><span class="term-label">关联:</span> ${item.related.map((ref) => {
+          const target = stackById.get(ref);
+          return target ? `<a href="#${escapeHtml(ref)}" class="term-link">${escapeHtml(target.name)}</a>` : escapeHtml(ref);
+        }).join(' <span class="jobs-tag-sep">·</span> ')}</div>`
+      : '';
+
+    return `<article class="term-card tech-card" id="${escapeHtml(item.id)}">
+      <header class="term-header">
+        <span class="tech-rank" aria-hidden="true">${item.rank}</span>
+        <h2 class="term-name">${escapeHtml(item.name)}</h2>
+        <span class="term-fullname">${escapeHtml(item.category)}</span>
+      </header>
+      <div class="term-body">
+        <div class="tech-demand" aria-label="要求该技术栈的岗位 ${item.count} / 15，占比 ${item.percent}%">
+          <div class="tech-demand-track" aria-hidden="true"><div class="tech-demand-fill" style="width:${item.percent}%"></div></div>
+          <span class="tech-demand-text">${item.count} / 15 · ${item.percent}%</span>
+        </div>
+        <p class="term-summary">${escapeHtml(item.summary)}</p>
+        ${relatedHtml}
+      </div>
+    </article>`;
+  }).join('');
+
+  const jobCards = positions.map((p) => `<article class="term-card job-card" id="${escapeHtml(p.id)}">
+      <header class="term-header">
+        <h2 class="term-name">${escapeHtml(p.title)}</h2>
+        <span class="job-tier job-tier--${p.tier === '强推' ? 'strong' : 'ok'}">${escapeHtml(p.tier)}</span>
+      </header>
+      <div class="term-body">
+        <div class="job-company">
+          <span class="job-company-name">${escapeHtml(p.company)}</span>
+          <span class="job-score" aria-label="匹配分 ${p.matchScore}">匹配分 ${p.matchScore}</span>
+        </div>
+        <div class="job-meta"><span>💰 ${escapeHtml(p.salary)}</span><span>📍 ${escapeHtml(p.location)}</span><span>🎓 ${escapeHtml(p.degree)}</span><span>🏢 ${escapeHtml(p.scale)}</span></div>
+        <p class="term-summary job-jd">${escapeHtml(p.jd)}</p>
+        ${(p.stack || []).length ? `<div class="term-related job-stack-tags">${p.stack.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join('')}</div>` : ''}
+        <div class="term-refs"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer">查看原始岗位页 ↗</a></div>
+      </div>
+    </article>`).join('');
+
+  const jobsDataPayload = {
+    techStack,
+    positions,
+    dataAsOf,
+  };
+
+  const body = `
+  <noscript><style>#jobs-jobs-panel[hidden]{display:block !important}.jobs-switch-row{display:none !important}</style></noscript>
+  <section class="jobs-page" id="jobs-explorer-root">
+    <div class="jobs-head">
+      <div class="jobs-head-copy">
+        <h1 class="terms-title">求职专栏</h1>
+        <p class="terms-intro">杭州机器人实习求职市场速览：技术栈需求优先级与本科可投岗位 JD 一一对应。</p>
+      </div>
+      <span class="jobs-asof" role="note" aria-label="数据截止 ${escapeHtml(dataAsOf)}"><span class="jobs-asof-dot" aria-hidden="true"></span>数据截止 ${escapeHtml(dataAsOf)}</span>
+    </div>
+    <div class="jobs-switch-row" role="group" aria-label="求职专栏板块切换">
+      <button type="button" class="jobs-tab-label active" data-tab="stack" aria-pressed="true">技术栈需求</button>
+      <button type="button" class="jobs-toggle" role="switch" aria-checked="false" aria-label="切换到岗位 JD 板块"><span class="jobs-toggle-knob" aria-hidden="true"></span></button>
+      <button type="button" class="jobs-tab-label" data-tab="jobs" aria-pressed="false">岗位 JD</button>
+    </div>
+    <div role="status" aria-live="polite" id="jobs-count" class="terms-count">显示 1–${Math.min(STACK_PER_PAGE, techStack.length)} / 共 ${techStack.length} 项技术栈，第 1 / ${jobsTotalPages(techStack.length, STACK_PER_PAGE)} 页</div>
+    <div id="jobs-results">
+      <section id="jobs-stack-panel" class="jobs-panel" role="tabpanel" aria-labelledby="jobs-stack-panel-title">
+        <h2 id="jobs-stack-panel-title" class="jobs-panel-title">技术栈需求优先级 <small>按要求的岗位数量排序</small></h2>
+        <div class="terms-grid jobs-grid">${stackCards}</div>
+      </section>
+      <section id="jobs-jobs-panel" class="jobs-panel" role="tabpanel" aria-labelledby="jobs-jobs-panel-title" hidden>
+        <h2 id="jobs-jobs-panel-title" class="jobs-panel-title">在招岗位 JD <small>第一梯队（强推）在前，与公司一一对应</small></h2>
+        <div class="terms-grid jobs-grid">${jobCards}</div>
+      </section>
+    </div>
+    <nav id="jobs-pagination" class="terms-pagination" aria-label="求职专栏分页" hidden></nav>
+  </section>
+  <script id="jobs-data" type="application/json">${safeJsonForScript(jobsDataPayload)}</script>`;
+
+  return layout({
+    title: '求职专栏',
+    description: '杭州机器人实习求职专栏：技术栈需求优先级排名与本科可投岗位 JD 详情',
+    active: '/jobs/',
+    body,
+    jsonLd: [breadcrumbJsonLd],
+    pageUrl: '/jobs/',
   });
 }
 
@@ -1919,6 +1248,7 @@ function sitemap() {
     { loc: config.site.url + '/about/', priority: '0.7', changefreq: 'monthly' },
     { loc: config.site.url + '/friends/', priority: '0.5', changefreq: 'monthly' },
     { loc: config.site.url + '/terms/', priority: '0.6', changefreq: 'monthly' },
+    { loc: config.site.url + '/jobs/', priority: '0.6', changefreq: 'weekly' },
     ...posts.map((p) => ({
       loc: `${config.site.url}/blog/${p.slug}/`,
       lastmod: p.data.pubDate,
@@ -1969,39 +1299,6 @@ function write(distDir, file, content) {
   const full = path.join(distDir, file);
   fs.mkdirSync(path.dirname(full), { recursive: true });
   atomicWrite(full, content);
-}
-
-function copyPublic(distDir) {
-  if (!fs.existsSync(PUBLIC)) return;
-  const walk = (dir, rel) => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const src = path.join(dir, entry.name);
-      const dest = path.join(distDir, rel, entry.name);
-      if (entry.isDirectory()) {
-        walk(src, path.join(rel, entry.name));
-      } else {
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        let lastErr;
-        for (let attempt = 0; attempt < 15; attempt++) {
-          try {
-            fs.copyFileSync(src, dest);
-            lastErr = null;
-            break;
-          } catch (e) {
-            lastErr = e;
-            if (['EPERM', 'EBUSY', 'EACCES'].includes(e.code)) {
-              const end = Date.now() + 60 + attempt * 40;
-              while (Date.now() < end) {}
-            } else {
-              throw e;
-            }
-          }
-        }
-        if (lastErr) throw lastErr;
-      }
-    }
-  };
-  walk(PUBLIC, '');
 }
 
 // 过滤版本的 public 复制(排除残留文件)
@@ -2176,6 +1473,21 @@ export function buildSite({ distDir = DIST, tmpRoot = path.dirname(distDir) } = 
 }
 </style>`;
 
+    console.log('[build] 打包 React 客户端组件...');
+    const clientFilenames = buildClientAssets(tmpDist);
+    const versionHash = createHash('sha256');
+    for (const dir of [SRC, PUBLIC]) {
+      const hashDirectory = (directory) => {
+        for (const name of fs.readdirSync(directory).sort()) {
+          const file = path.join(directory, name);
+          if (fs.statSync(file).isDirectory()) hashDirectory(file);
+          else versionHash.update(path.relative(ROOT, file)).update(fs.readFileSync(file));
+        }
+      };
+      hashDirectory(dir);
+    }
+    navigationVersion = versionHash.update(clientFilenames.sort().join(',')).digest('hex').slice(0, 16);
+
     console.log('[build] 生成页面 HTML...');
     write(tmpDist, 'index.html', home());
     write(tmpDist, 'about/index.html', about());
@@ -2189,9 +1501,11 @@ export function buildSite({ distDir = DIST, tmpRoot = path.dirname(distDir) } = 
     projects.forEach((p) => write(tmpDist, `projects/${p.slug}/index.html`, projectPage(p)));
     write(tmpDist, 'friends/index.html', friendsPage());
     write(tmpDist, 'terms/index.html', termsPage());
+    write(tmpDist, 'jobs/index.html', jobsPage());
     write(tmpDist, 'rss.xml', rss());
     write(tmpDist, 'sitemap.xml', sitemap());
     write(tmpDist, 'robots.txt', robots());
+    write(tmpDist, 'search-index.json', JSON.stringify(createSearchIndex()));
     write(tmpDist, '404.html', notFound());
 
     console.log('[build] 复制 public 资源...');
@@ -2202,11 +1516,13 @@ export function buildSite({ distDir = DIST, tmpRoot = path.dirname(distDir) } = 
       `assets/${cssHashedName}`,
       `assets/${loraFilename}`,
       `assets/${jetbrainsFilename}`,
+      ...clientFilenames.map((name) => `assets/${name}`),
       'assets/licenses/lora-variable-LICENSE.txt',
       'assets/licenses/jetbrains-mono-variable-LICENSE.txt',
       'favicon.svg',
       'avatar.svg',
       'og-image.png',
+      'search-index.json',
       '404.html',
     ];
     for (const resource of criticalResources) {
