@@ -1,0 +1,83 @@
+{
+  "name": "MostarManus",
+  "title": "具身智能开发者 · AI Agent 研究者",
+  "avatar": "/logo.png",
+  "summary": "专注于大模型驱动的具身智能机器人研发。从底层 ROS2 导航、机械臂控制到上层 OpenClaw 智能体接入,致力于让机器人具备真正的「理解-推理-执行」闭环能力。相信未来每台机器人都有自己的「大脑」。",
+  "contacts": {
+    "email": "3563833898@qq.com",
+    "bilibili": "",
+    "weibo": ""
+  },
+  "education": [
+    {
+      "school": "蚌埠学院",
+      "major": "电子信息工程",
+      "degree": "本科在读（2028届）",
+      "period": "2024 – 2028"
+    }
+  ],
+  "skills": [
+    {
+      "group": "具身智能 & Agent",
+      "items": [
+        "OpenClaw",
+        "LangChain",
+        "RAG 检索增强",
+        "Multi-Agent 系统",
+        "Prompt Engineering",
+        "Function Calling"
+      ]
+    },
+    {
+      "group": "机器人系统",
+      "items": [
+        "ROS2 Humble",
+        "Navigation2",
+        "MoveIt2",
+        "SLAM 建图",
+        "Gazebo 仿真",
+        "micro-ROS"
+      ]
+    },
+    {
+      "group": "感知与视觉",
+      "items": [
+        "YOLOv8 目标检测",
+        "Mediapipe 姿态估计",
+        "OpenCV",
+        "深度相机",
+        "Transformer 追踪",
+        "3D 视觉"
+      ]
+    },
+    {
+      "group": "底层控制",
+      "items": [
+        "STM32",
+        "PID 控制",
+        "编码器/IMU",
+        "电机驱动",
+        "C/C++",
+        "PlatformIO"
+      ]
+    },
+    {
+      "group": "部署与工具链",
+      "items": [
+        "Jetson Orin Nano",
+        "树莓派 5",
+        "Docker 容器化",
+        "Git",
+        "Linux/Ubuntu"
+      ]
+    }
+  ],
+  "experience": [
+    {
+      "date": "2024.06 – 至今",
+      "org": "具身智能实验室 / 个人项目",
+      "role": "核心开发者",
+      "desc": "主导开发基于 OpenClaw 的具身智能机器人系统,实现从自然语言指令到机器人动作的端到端执行"
+    }
+  ]
+}

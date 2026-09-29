@@ -1,0 +1,1152 @@
+[
+  {
+    "id": "ros2",
+    "term": "ROS 2",
+    "fullName": "Robot Operating System 2",
+    "category": "ROS 2 基础",
+    "aliases": [
+      "机器人操作系统2"
+    ],
+    "summary": "开源机器人中间件框架，提供通信、硬件抽象和常用工具。",
+    "details": [
+      "ROS 2 是 ROS 的第二代，支持实时系统、多机器人及安全关键应用。",
+      "相比 ROS 1，它使用 DDS（数据分发服务）作为默认通信层，支持更好的实时性和多机通信。",
+      "常用发行版包括 Humble（LTS）、Jazzy 和 Rolling。"
+    ],
+    "related": [
+      "node",
+      "topic",
+      "service",
+      "qos",
+      "lifecycle_node"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "node",
+    "term": "节点",
+    "fullName": "Node",
+    "category": "ROS 2 基础",
+    "aliases": [
+      "Node",
+      "ROS节点"
+    ],
+    "summary": "ROS 2 中执行计算的基本单元，通过话题和服务通信。",
+    "details": [
+      "每个节点通常负责单一功能，如读取传感器数据或控制电机。",
+      "节点可发布/订阅话题、提供服务或执行 Action。",
+      "在 Nav2 架构中，planner_server、controller_server 等都是独立节点。"
+    ],
+    "related": [
+      "ros2",
+      "topic",
+      "service",
+      "launch"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "topic",
+    "term": "话题",
+    "fullName": "Topic",
+    "category": "ROS 2 基础",
+    "aliases": [
+      "Topic",
+      "话题通信"
+    ],
+    "summary": "节点间异步发布/订阅消息的命名总线。",
+    "details": [
+      "话题是 ROS 2 最常用的通信机制，适合传感器数据流等持续数据传输。",
+      "常见话题如 /cmd_vel（速度指令）、/scan（激光数据）、/odom（里程计）。",
+      "消息类型需匹配才能通信，如 geometry_msgs/msg/Twist。"
+    ],
+    "related": [
+      "ros2",
+      "node",
+      "cmd_vel",
+      "odom",
+      "qos",
+      "laserscan"
+    ],
+    "articleRefs": [
+      "/blog/ros2-systematic-debugging/"
+    ]
+  },
+  {
+    "id": "service",
+    "term": "服务",
+    "fullName": "Service",
+    "category": "ROS 2 基础",
+    "aliases": [
+      "Service",
+      "服务调用"
+    ],
+    "summary": "节点间同步请求/响应通信机制。",
+    "details": [
+      "服务适用于需要返回结果的操作，如查询地图状态或保存地图。",
+      "与话题不同，服务是同步的——客户端等待服务端响应。",
+      "Nav2 中常用于触发导航任务或清空代价地图。"
+    ],
+    "related": [
+      "ros2",
+      "node",
+      "topic",
+      "action"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "action",
+    "term": "Action",
+    "fullName": "Action",
+    "category": "ROS 2 基础",
+    "aliases": [
+      "动作",
+      "目标行为"
+    ],
+    "summary": "用于长时间运行任务的异步通信模式，支持进度反馈和取消。",
+    "details": [
+      "Action 结合了话题的异步性和服务的请求/响应模式。",
+      "由 Goal Request、Feedback 和 Result 三部分组成。",
+      "Nav2 导航任务（如 NavigateToPose）就是通过 Action 实现的。"
+    ],
+    "related": [
+      "ros2",
+      "service",
+      "nav2",
+      "computepathtopose",
+      "navigate_to_pose"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "params",
+    "term": "参数",
+    "fullName": "Parameters",
+    "category": "ROS 2 基础",
+    "aliases": [
+      "Parameters",
+      "ROS参数"
+    ],
+    "summary": "节点的运行时配置值，可在启动时或运行中修改。",
+    "details": [
+      "参数用于存储节点配置，如 PID 参数、控制器频率等。",
+      "可通过 YAML 文件加载、命令行设置或运行时动态修改。",
+      "ROS 2 的参数由各节点持有，不再使用 ROS 1 式的全局参数服务器。"
+    ],
+    "related": [
+      "ros2",
+      "node",
+      "yaml",
+      "pid"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "launch",
+    "term": "Launch",
+    "fullName": "Launch System",
+    "category": "ROS 2 基础",
+    "aliases": [
+      "启动文件",
+      "Launch文件"
+    ],
+    "summary": "描述并管理多个节点的启动配置和依赖关系。",
+    "details": [
+      "Launch 文件（Python 或 XML 格式）定义了节点及其参数、命名空间等。",
+      "支持节点间的依赖声明，确保按正确顺序启动。",
+      "ros2 launch 是启动复杂机器人系统的标准方式。"
+    ],
+    "related": [
+      "ros2",
+      "node",
+      "params",
+      "yaml",
+      "lifecycle_node"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "qos",
+    "term": "QoS",
+    "fullName": "Quality of Service",
+    "category": "ROS 2 基础",
+    "aliases": [
+      "服务质量",
+      "QoS策略",
+      "质量服务"
+    ],
+    "summary": "为话题通信定义可靠性、历史深度和持久性等传输策略的一组约定。",
+    "details": [
+      "发布者与订阅者的 QoS 需要兼容；话题名称和消息类型正确，并不代表两端一定能收到数据。",
+      "常见策略包括可靠传输（reliable）与尽力而为（best effort）、保留深度（history/depth）和持久性（durability）。",
+      "传感器数据通常更重视低延迟，控制与状态消息则需要结合丢包风险和实时性选择策略。"
+    ],
+    "related": [
+      "ros2",
+      "topic",
+      "laserscan",
+      "cmd_vel"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "lifecycle_node",
+    "term": "生命周期节点",
+    "fullName": "Lifecycle Node",
+    "category": "ROS 2 基础",
+    "aliases": [
+      "Lifecycle Node",
+      "受管节点",
+      "Managed Node",
+      "生命周期管理"
+    ],
+    "summary": "可显式配置、激活、停用和清理的受管节点，用于让关键组件按受控状态运行。",
+    "details": [
+      "典型状态包括 unconfigured、inactive、active 和 finalized；状态转换可避免节点在依赖尚未就绪时直接工作。",
+      "Nav2 中的地图、定位和导航组件常使用生命周期管理，以便统一启动、检查和关闭。",
+      "看到节点存在不等于它已经可用；应同时确认其生命周期状态和实际输入输出。"
+    ],
+    "related": [
+      "ros2",
+      "node",
+      "launch",
+      "map_server",
+      "controller_server"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "tf",
+    "term": "TF",
+    "fullName": "Transform Library",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "坐标变换",
+      "tf2"
+    ],
+    "summary": "跟踪和维护多个坐标系之间变换关系的库。",
+    "details": [
+      "TF 维护坐标系树，如 base_link → base_footprint → odom → map。",
+      "可用于将激光数据从传感器坐标系转换到机器人基座或全局坐标系。",
+      "TF 树必须连通且无环，否则会导致定位失败。"
+    ],
+    "related": [
+      "coordinate",
+      "map",
+      "odom",
+      "base_footprint",
+      "amcl",
+      "pose"
+    ],
+    "articleRefs": [
+      "/blog/ros2-systematic-debugging/"
+    ]
+  },
+  {
+    "id": "coordinate",
+    "term": "坐标系",
+    "fullName": "Coordinate Frame",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "Frame",
+      "坐标帧"
+    ],
+    "summary": "定义物理空间中位置和方向的参考基准。",
+    "details": [
+      "机器人常用坐标系包括 map（全局地图）、odom（里程计）、base_link（机器人中心）。",
+      "正确的坐标系设置是导航和建图的前提条件。",
+      "URDF 模型定义了机器人自身的连杆坐标系。"
+    ],
+    "related": [
+      "tf",
+      "map",
+      "odom",
+      "base_footprint"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "map",
+    "term": "map",
+    "fullName": "Map Frame",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "地图坐标系",
+      "全局地图"
+    ],
+    "summary": "静态全局环境的参考坐标系，代表世界的固定原点。",
+    "details": [
+      "map 坐标系在 SLAM 建图后保持不变，不会因机器人移动而漂移。",
+      "定位算法输出机器人在 map 坐标系中的位姿。",
+      "与 odom 不同，map 不存在累积误差（但可能有跳跃修正）。"
+    ],
+    "related": [
+      "tf",
+      "odom",
+      "amcl",
+      "slam",
+      "cartographer",
+      "pose",
+      "occupancy_grid",
+      "map_server"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "odom",
+    "term": "odom",
+    "fullName": "Odometry Frame",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "里程计坐标系"
+    ],
+    "summary": "基于轮速编码器积分得到的连续但存在漂移的坐标系。",
+    "details": [
+      "odom 坐标系随时间连续变化，无跳跃修正，适合短期运动控制。",
+      "由于积分误差累积，odom 长期精度下降，需要定位算法校正到 map。",
+      "里程计来源可以是轮式编码器、IMU 融合或视觉惯性里程计。"
+    ],
+    "related": [
+      "tf",
+      "map",
+      "amcl",
+      "ekf",
+      "base_footprint",
+      "pose",
+      "imu",
+      "encoder"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "base_footprint",
+    "term": "base_footprint",
+    "fullName": "Base Footprint Frame",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "底盘投影点"
+    ],
+    "summary": "机器人底盘在地面的投影位置，通常是导航的定位参考点。",
+    "details": [
+      "base_footprint 位于地面高度，无 z 轴旋转（roll/pitch 为零）。",
+      "它是连接 odom/map 与 base_link 的桥梁坐标系。",
+      "差速底盘通常以两轮中点作为 base_footprint 原点。"
+    ],
+    "related": [
+      "tf",
+      "odom",
+      "map",
+      "coordinate"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "pose",
+    "term": "位姿",
+    "fullName": "Pose",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "Pose",
+      "PoseStamped",
+      "位置和朝向"
+    ],
+    "summary": "同时描述机器人位置与朝向的状态，是定位、巡逻航点和导航目标的共同语言。",
+    "details": [
+      "二维移动机器人通常用 x、y 与 yaw 表示位姿；三维消息还会包含 z 和四元数朝向。",
+      "PoseStamped 在位姿之外带有坐标系和时间戳，Nav2 目标通常使用这种消息形式。",
+      "比较位姿时必须同时说明参考坐标系，否则相同数值可能表示完全不同的位置。"
+    ],
+    "related": [
+      "tf",
+      "map",
+      "odom",
+      "amcl",
+      "navigate_to_pose"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "imu",
+    "term": "IMU",
+    "fullName": "Inertial Measurement Unit",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "惯性测量单元",
+      "陀螺仪",
+      "加速度计"
+    ],
+    "summary": "测量角速度和线加速度的惯性传感器，是姿态与里程计融合的重要输入。",
+    "details": [
+      "IMU 通常包含陀螺仪和加速度计，部分设备还包含磁力计；它能高频反映短时间的运动变化。",
+      "EKF 可将 IMU 与轮式里程计等数据融合，降低单一传感器造成的累计误差。",
+      "安装方向、坐标系定义和噪声参数会直接影响融合效果，不能只看话题是否在发布。"
+    ],
+    "related": [
+      "ekf",
+      "odom",
+      "tf",
+      "encoder"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "encoder",
+    "term": "编码器",
+    "fullName": "Wheel Encoder",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "车轮编码器",
+      "轮速编码器",
+      "Wheel Encoder"
+    ],
+    "summary": "把车轮转动转换为脉冲、速度或位移信息的传感器，是轮式里程计和底盘闭环控制的基础。",
+    "details": [
+      "编码器通过累计车轮转角估计机器人运动，连续性好，但会受到打滑、轮径误差和地面条件影响。",
+      "编码器数据常用于生成 odom，并与 IMU 等传感器一起送入 EKF 融合。",
+      "底盘速度环通常依赖编码器反馈；PID 参数需要在明确反馈单位和限速条件后再调整。"
+    ],
+    "related": [
+      "odom",
+      "ekf",
+      "pid",
+      "imu"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "occupancy_grid",
+    "term": "占用栅格地图",
+    "fullName": "Occupancy Grid",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "Occupancy Grid",
+      "OccupancyGrid",
+      "栅格地图",
+      "自由栅格"
+    ],
+    "summary": "用自由、占用和未知网格表示环境的地图数据结构，是路径可行性和障碍距离检查的基础。",
+    "details": [
+      "每个格子记录环境被障碍物占据的概率或离散状态，地图分辨率决定一个格子代表的实际尺寸。",
+      "保存的 PGM/YAML 地图和 Nav2 代价地图都建立在栅格表示之上，但用途和更新方式不同。",
+      "航点本身位于自由栅格并不等于路线安全；还应检查连接路径、未知区域和障碍物余量。"
+    ],
+    "related": [
+      "map",
+      "costmap",
+      "map_server",
+      "laserscan"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "slam",
+    "term": "SLAM",
+    "fullName": "Simultaneous Localization and Mapping",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "同时定位与建图",
+      "即时定位与地图构建"
+    ],
+    "summary": "机器人在未知环境中边探索边构建地图的过程。",
+    "details": [
+      "SLAM 解决「我在哪」和「周围环境如何」两个问题。",
+      "主流方法包括基于滤波（如 EKF-SLAM）和基于图优化（如 Cartographer）。",
+      "SLAM 输出的地图后续可用于路径规划和自主导航。"
+    ],
+    "related": [
+      "cartographer",
+      "amcl",
+      "laserscan",
+      "map",
+      "tf"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "cartographer",
+    "term": "Cartographer",
+    "fullName": "Google Cartographer",
+    "category": "坐标、定位与建图",
+    "aliases": [],
+    "summary": "Google 开发的 2D/3D SLAM 算法，基于子图和扫描匹配。",
+    "details": [
+      "Cartographer 使用激光雷达数据进行实时建图，适合室内结构化环境。",
+      "它维护一系列子图（submap），并通过后端闭环检测进行全局优化。",
+      "在 ROS 2 中以 cartographer_ros 包提供接口。"
+    ],
+    "related": [
+      "slam",
+      "laserscan",
+      "tf",
+      "map"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "amcl",
+    "term": "AMCL",
+    "fullName": "Adaptive Monte Carlo Localization",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "自适应蒙特卡洛定位"
+    ],
+    "summary": "用粒子滤波估计机器人在已知地图中的位姿。",
+    "details": [
+      "AMCL 结合地图、里程计和传感器观测更新位姿估计。",
+      "粒子数量会影响定位精度和计算开销，应结合地图、传感器与算力通过配置调优。",
+      "定位不稳定时，应先结合协方差、TF 和传感器数据判断原因。"
+    ],
+    "related": [
+      "map",
+      "odom",
+      "tf",
+      "laserscan",
+      "ekf",
+      "pose",
+      "occupancy_grid",
+      "map_server"
+    ],
+    "articleRefs": [
+      "/blog/ros2-systematic-debugging/"
+    ]
+  },
+  {
+    "id": "ekf",
+    "term": "EKF",
+    "fullName": "Extended Kalman Filter",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "扩展卡尔曼滤波"
+    ],
+    "summary": "融合多传感器数据的非线性状态估计算法。",
+    "details": [
+      "EKF 在机器人中常用于融合 IMU、编码器和 GPS 数据。",
+      "robot_localization 包提供了完整的 EKF/UKF 实现。",
+      "良好的 EKF 配置能显著提升里程计精度和定位稳定性。"
+    ],
+    "related": [
+      "odom",
+      "amcl",
+      "tf",
+      "imu",
+      "encoder"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "laserscan",
+    "term": "LaserScan",
+    "fullName": "Laser Scan Message",
+    "category": "坐标、定位与建图",
+    "aliases": [
+      "激光扫描",
+      "激光雷达数据"
+    ],
+    "summary": "激光雷达测距数据的 ROS 消息类型，包含角度范围和距离数组。",
+    "details": [
+      "LaserScan 消息包含 angle_min、angle_max、angle_increment 和 ranges 数组。",
+      "典型 2D 激光雷达（如 RPLidar）每秒发布数十次扫描数据。",
+      "该数据是 SLAM 定位、避障和代价地图的主要输入源。"
+    ],
+    "related": [
+      "slam",
+      "amcl",
+      "costmap",
+      "topic",
+      "qos",
+      "occupancy_grid"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "nav2",
+    "term": "Nav2",
+    "fullName": "Navigation 2",
+    "category": "导航与运动安全",
+    "aliases": [
+      "ROS 2 导航栈"
+    ],
+    "summary": "ROS 2 官方的模块化导航框架，支持路径规划、控制和行为树。",
+    "details": [
+      "Nav2 是 ROS 1 Navigation Stack 的继任者，完全重写为支持 ROS 2 特性。",
+      "核心组件包括 planner_server、controller_server、bt_navigator 等。",
+      "支持多种规划算法（A*、Dijkstra、Smac Hybrid-A*）和行为树任务编排。"
+    ],
+    "related": [
+      "action",
+      "costmap",
+      "planner_server",
+      "computepathtopose",
+      "cmd_vel",
+      "map_server",
+      "controller_server",
+      "waypoint_follower",
+      "navigate_to_pose",
+      "planning_dry_run"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "costmap",
+    "term": "Costmap",
+    "fullName": "Cost Map",
+    "category": "导航与运动安全",
+    "aliases": [
+      "代价地图"
+    ],
+    "summary": "表示环境中障碍物和危险程度的网格地图，用于路径规划。",
+    "details": [
+      "Nav2 使用局部和全局两层代价地图，分别用于长程规划和近场避障。",
+      "代价层包括静态层（地图）、膨胀层（障碍物缓冲）和障碍物层（传感器检测）。",
+      "膨胀半径决定了机器人与障碍物的最小安全距离。"
+    ],
+    "related": [
+      "nav2",
+      "laserscan",
+      "planner_server",
+      "computepathtopose",
+      "occupancy_grid",
+      "controller_server"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "planner_server",
+    "term": "planner_server",
+    "fullName": "Planner Server",
+    "category": "导航与运动安全",
+    "aliases": [
+      "规划服务器"
+    ],
+    "summary": "Nav2 中负责全局路径规划的节点。",
+    "details": [
+      "planner_server 接收目标点位姿，在全局代价地图上搜索最优路径。",
+      "支持 A*、Dijkstra、Smac Hybrid-A* 等算法，可通过参数切换。",
+      "输出的路径传递给 controller_server 进行轨迹追踪。"
+    ],
+    "related": [
+      "nav2",
+      "costmap",
+      "computepathtopose",
+      "controller_server",
+      "navigate_to_pose",
+      "planning_dry_run"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "computepathtopose",
+    "term": "ComputePathToPose",
+    "fullName": "ComputePathToPose Action",
+    "category": "导航与运动安全",
+    "aliases": [],
+    "summary": "Nav2 用于计算到目标位姿路径的标准 Action 类型。",
+    "details": [
+      "planner_server 可提供 compute_path_to_pose 等 Action 端点，实际名称和可用插件取决于版本与配置。",
+      "客户端发送目标位姿（geometry_msgs/PoseStamped），并接收规划得到的路径结果。",
+      "路径可按需要交给平滑器和控制器等后续组件处理。"
+    ],
+    "related": [
+      "nav2",
+      "action",
+      "planner_server",
+      "costmap",
+      "pose",
+      "navigate_to_pose",
+      "planning_dry_run"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "cmd_vel",
+    "term": "/cmd_vel",
+    "fullName": "Command Velocity",
+    "category": "导航与运动安全",
+    "aliases": [
+      "速度指令",
+      "速度命令"
+    ],
+    "summary": "机器人运动控制的标准话题，发布线速度和角速度指令。",
+    "details": [
+      "消息类型为 geometry_msgs/Twist，包含 linear.x（前进速度）和 angular.z（转向角速度）。",
+      "几乎所有移动机器人底盘都订阅此话题来接收运动指令。",
+      "Nav2 的 controller_server 最终输出到此话题驱动底盘运动。"
+    ],
+    "related": [
+      "nav2",
+      "topic",
+      "pid",
+      "controller_server",
+      "velocity_safety"
+    ],
+    "articleRefs": [
+      "/blog/ros2-systematic-debugging/"
+    ]
+  },
+  {
+    "id": "pid",
+    "term": "PID",
+    "fullName": "Proportional-Integral-Derivative Controller",
+    "category": "导航与运动安全",
+    "aliases": [
+      "比例-积分-微分控制器"
+    ],
+    "summary": "经典反馈控制算法，广泛用于机器人速度和位置环控制。",
+    "details": [
+      "PID 通过比例（P）、积分（I）、微分（D）三项组合实现精确控制。",
+      "Kp 决定响应速度，Ki 消除稳态误差，Kd 抑制超调和振荡。",
+      "调试 PID 时建议先调 P，再加 D 消振，最后加 I 消除静差。"
+    ],
+    "related": [
+      "cmd_vel",
+      "params",
+      "yaml",
+      "encoder",
+      "velocity_safety"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "map_server",
+    "term": "map_server",
+    "fullName": "Map Server",
+    "category": "导航与运动安全",
+    "aliases": [
+      "地图服务器",
+      "map server",
+      "mapserver",
+      "nav2_map_server"
+    ],
+    "summary": "Nav2 中负责加载并发布静态地图的组件，为定位和导航提供统一的环境参考。",
+    "details": [
+      "map_server 通常读取地图 YAML 与图像文件，并发布占用栅格地图供 AMCL、规划器和可视化工具使用。",
+      "静态地图加载成功不代表定位已恢复；仍需检查传感器、TF、初始位姿和 AMCL 状态。",
+      "它常由生命周期管理器统一激活和关闭，便于在系统启动失败时定位具体环节。"
+    ],
+    "related": [
+      "nav2",
+      "map",
+      "occupancy_grid",
+      "lifecycle_node",
+      "amcl"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "controller_server",
+    "term": "controller_server",
+    "fullName": "Controller Server",
+    "category": "导航与运动安全",
+    "aliases": [
+      "控制器服务器",
+      "controller server",
+      "导航控制器"
+    ],
+    "summary": "Nav2 中把全局路径转换为实时速度控制指令的组件，是“路径算出来”到“底盘真的运动”之间的关键环节。",
+    "details": [
+      "controller_server 根据路径、机器人当前位姿和局部环境计算线速度与角速度，并将结果送往后续速度控制链路。",
+      "它需要结合局部代价地图、机器人足迹、速度与加速度限制配置，不能仅凭规划成功就直接启用。",
+      "实车验证应先设置保守速度、人工接管与停车手段，再由单段低速任务逐步扩大范围。"
+    ],
+    "related": [
+      "nav2",
+      "planner_server",
+      "costmap",
+      "cmd_vel",
+      "navigate_to_pose",
+      "velocity_safety"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "waypoint_follower",
+    "term": "航点跟随",
+    "fullName": "Waypoint Follower",
+    "category": "导航与运动安全",
+    "aliases": [
+      "Waypoint Follower",
+      "航点跟随器",
+      "waypoint_follower",
+      "巡逻航点"
+    ],
+    "summary": "按顺序执行多个目标位姿的导航组件，适合实验室巡逻和重复路线任务。",
+    "details": [
+      "航点跟随不是简单的坐标列表；每个航点都需要明确到达判定、超时、失败处理和是否继续下一点。",
+      "它通常复用 NavigateToPose 等导航 Action，并可在航点间插入拍照、播报或等待等受控任务。",
+      "部署前应先逐段验证路线，再考虑完整闭环巡逻，避免把离线规划结果直接当作实车通过证据。"
+    ],
+    "related": [
+      "nav2",
+      "action",
+      "pose",
+      "navigate_to_pose",
+      "planning_dry_run"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "navigate_to_pose",
+    "term": "NavigateToPose",
+    "fullName": "NavigateToPose Action",
+    "category": "导航与运动安全",
+    "aliases": [
+      "导航到位姿",
+      "导航目标",
+      "Navigate To Pose",
+      "navigate_to_pose"
+    ],
+    "summary": "Nav2 用于前往指定目标位姿的标准 Action，覆盖规划、控制、反馈和取消等完整导航过程。",
+    "details": [
+      "与只计算路径的 ComputePathToPose 不同，NavigateToPose 会在导航栈完整就绪后协调规划与控制链路。",
+      "客户端可接收进度反馈、成功或失败结果，并在安全条件变化时请求取消任务。",
+      "目标位姿必须带有正确坐标系；实车调用前还应确认速度仲裁、限速和人工接管策略。"
+    ],
+    "related": [
+      "nav2",
+      "action",
+      "pose",
+      "planner_server",
+      "controller_server",
+      "cmd_vel"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "velocity_safety",
+    "term": "速度仲裁与安全看门狗",
+    "fullName": "Velocity Multiplexer and Safety Watchdog",
+    "category": "导航与运动安全",
+    "aliases": [
+      "velocity mux",
+      "velocity_mux",
+      "twist_mux",
+      "cmd_vel仲裁",
+      "安全看门狗"
+    ],
+    "summary": "在多个控制来源之间决定速度指令优先级，并在超时或异常时将机器人置于安全停止状态的保护机制。",
+    "details": [
+      "手柄、导航、语音控制等来源不应无序同时驱动底盘；仲裁层应明确优先级、超时和抢占规则。",
+      "安全看门狗在控制链路超时、数据失效或保护条件触发时输出零速度或切断危险指令。",
+      "具体是否使用 twist_mux 等实现取决于系统配置；上线前必须通过真实的超时、抢占和急停演练验证。"
+    ],
+    "related": [
+      "cmd_vel",
+      "controller_server",
+      "pid",
+      "action_allowlist"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "planning_dry_run",
+    "term": "纯规划验证",
+    "fullName": "Planning Dry-run",
+    "category": "导航与运动安全",
+    "aliases": [
+      "Dry-run",
+      "dry run",
+      "无运动验证",
+      "路径规划演练"
+    ],
+    "summary": "只启动规划链路并计算路径、不启动控制器和底盘运动的安全验证方法。",
+    "details": [
+      "纯规划验证可检查航点是否位于自由区域、路径能否生成、障碍物余量是否合理，以及规划器参数是否可用。",
+      "验证期间应确认没有新的 /cmd_vel 控制来源出现，避免“以为只是模拟、实际已经运动”的风险。",
+      "规划成功只能说明几何和配置具备可行性，不能替代传感器、控制器、制动和人工接管的实车验收。"
+    ],
+    "related": [
+      "nav2",
+      "planner_server",
+      "computepathtopose",
+      "costmap",
+      "cmd_vel",
+      "waypoint_follower"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "vad",
+    "term": "VAD",
+    "fullName": "Voice Activity Detection",
+    "category": "语音与智能体",
+    "aliases": [
+      "语音活动检测",
+      "语音端点检测"
+    ],
+    "summary": "检测音频流中是否存在人声的技术，是语音交互的前置步骤。",
+    "details": [
+      "VAD 用于区分静音段和人声段，减少无效的 ASR 调用。",
+      "常见实现包括基于能量阈值、深度学习模型（如 Silero VAD）。",
+      "低延迟 VAD 对实时语音交互体验至关重要。"
+    ],
+    "related": [
+      "asr",
+      "tts",
+      "openclaw",
+      "wake_word",
+      "conversation_state_machine"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "asr",
+    "term": "ASR",
+    "fullName": "Automatic Speech Recognition",
+    "category": "语音与智能体",
+    "aliases": [
+      "自动语音识别",
+      "语音转文字",
+      "STT"
+    ],
+    "summary": "将人类语音转换为文字的技术。",
+    "details": [
+      "ASR 是语音交互的核心环节，将音频信号转为可处理的文本。",
+      "方案包括云端 API（如 Whisper API）和本地模型（如 Whisper.cpp）。",
+      "选择时需权衡准确率、延迟和隐私要求。"
+    ],
+    "related": [
+      "vad",
+      "tts",
+      "openclaw",
+      "wake_word",
+      "conversation_state_machine",
+      "function_calling"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "tts",
+    "term": "TTS",
+    "fullName": "Text-to-Speech",
+    "category": "语音与智能体",
+    "aliases": [
+      "语音合成",
+      "文字转语音"
+    ],
+    "summary": "将文字转换为自然语音输出的技术。",
+    "details": [
+      "TTS 让机器人能以语音形式回复用户，增强交互体验。",
+      "方案包括在线 TTS API（如 Edge TTS）和本地合成引擎。",
+      "音质、延迟和多语言支持是主要选型指标。"
+    ],
+    "related": [
+      "vad",
+      "asr",
+      "openclaw",
+      "conversation_state_machine"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "openclaw",
+    "term": "OpenClaw",
+    "fullName": "OpenClaw AI Agent Framework",
+    "category": "语音与智能体",
+    "aliases": [],
+    "summary": "面向具身智能场景的开源 AI Agent 框架，集成语音交互与大模型推理。",
+    "details": [
+      "OpenClaw 整合 VAD、ASR、TTS 和 LLM 推理，构建端到端语音对话能力。",
+      "支持本地部署大语言模型，保护隐私的同时降低 API 成本。",
+      "可与 ROS 2 对接，实现自然语言控制的机器人交互。"
+    ],
+    "related": [
+      "vad",
+      "asr",
+      "tts",
+      "ros2",
+      "wake_word",
+      "conversation_state_machine",
+      "action_allowlist",
+      "function_calling"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "wake_word",
+    "term": "唤醒词",
+    "fullName": "Wake Word",
+    "category": "语音与智能体",
+    "aliases": [
+      "Wake Word",
+      "语音唤醒",
+      "关键词唤醒",
+      "wake word"
+    ],
+    "summary": "把语音系统从待机状态切换到交互状态的特定词语或短语，用于降低误触发和持续监听开销。",
+    "details": [
+      "唤醒词通常在本地以低功耗模型持续检测，命中后再启动或放开后续 ASR 识别流程。",
+      "误唤醒率、漏唤醒率和响应延迟需要一起评估，不能只用单次成功识别判断体验。",
+      "涉及机器人运动时，唤醒只代表可以开始理解用户意图，不代表已经获得执行动作的授权。"
+    ],
+    "related": [
+      "vad",
+      "asr",
+      "openclaw",
+      "conversation_state_machine"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "conversation_state_machine",
+    "term": "会话状态机",
+    "fullName": "Conversation State Machine",
+    "category": "语音与智能体",
+    "aliases": [
+      "任务状态机",
+      "交互状态机",
+      "对话状态机"
+    ],
+    "summary": "用明确状态和转换规则管理唤醒、聆听、执行、反馈、空闲与休眠的交互流程。",
+    "details": [
+      "状态机让系统知道何时接收语音、何时等待确认、何时允许取消，以及何时可以进入休眠。",
+      "正在执行机器人任务时不应因普通空闲计时而失去任务上下文；任务结束后再进入可配置的空闲与休眠逻辑。",
+      "每个状态都应定义超时、异常和人工中断处理，避免语音交互在边界条件下进入不可预测状态。"
+    ],
+    "related": [
+      "wake_word",
+      "vad",
+      "asr",
+      "tts",
+      "openclaw",
+      "action_allowlist"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "action_allowlist",
+    "term": "动作白名单",
+    "fullName": "Command Allowlist",
+    "category": "语音与智能体",
+    "aliases": [
+      "命令白名单",
+      "受限动作",
+      "动作许可清单",
+      "Command Allowlist"
+    ],
+    "summary": "只允许智能体调用经过审查的机器人动作与工具接口，并为每个动作设置可验证边界的安全机制。",
+    "details": [
+      "白名单应限定可调用的动作名称、参数范围、速度上限、执行条件和取消方式，而不是把自然语言直接映射为底盘指令。",
+      "模型输出只能提出请求；实际执行层仍必须独立校验参数、状态和权限。",
+      "运动类动作通常还需要二次确认、人工接管和速度仲裁等额外保护。"
+    ],
+    "related": [
+      "openclaw",
+      "function_calling",
+      "action",
+      "velocity_safety"
+    ],
+    "articleRefs": [
+      "/blog/openclaw-lab-patrol/"
+    ]
+  },
+  {
+    "id": "function_calling",
+    "term": "Function Calling",
+    "fullName": "Function Calling",
+    "category": "语音与智能体",
+    "aliases": [
+      "工具调用",
+      "函数调用",
+      "function_calling",
+      "Tool Calling"
+    ],
+    "summary": "让大模型以结构化参数请求调用外部工具或 API 的机制，可用于把意图接入受控的机器人能力。",
+    "details": [
+      "Function Calling 的价值在于把自然语言意图转换为可校验的结构化请求，而不是让模型直接拼接系统命令。",
+      "工具服务端必须验证名称、参数类型、边界与当前机器人状态，并将失败结果清晰返回给智能体。",
+      "在 ROS 2 场景中，可将工具封装为经过审核的 Service 或 Action 适配层，再由白名单和安全策略决定是否执行。"
+    ],
+    "related": [
+      "openclaw",
+      "asr",
+      "action",
+      "service",
+      "action_allowlist"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "jetson",
+    "term": "Jetson",
+    "fullName": "NVIDIA Jetson",
+    "category": "开发与配置",
+    "aliases": [
+      "英伟达Jetson",
+      "Jetson开发板"
+    ],
+    "summary": "NVIDIA 面向边缘 AI 计算的嵌入式平台系列。",
+    "details": [
+      "Jetson 系列（Nano、Orin Nano、AGX Orin）提供 GPU 加速的推理能力。",
+      "适合在机器人本体运行视觉感知、SLAM 和轻量级 LLM 推理。",
+      "JetPack 为 Jetson 提供 CUDA、TensorRT 和 DeepStream 等相关组件；设备是否已安装取决于镜像和部署方式。"
+    ],
+    "related": [
+      "yaml",
+      "ros2"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "yaml",
+    "term": "YAML",
+    "fullName": "YAML Ain't Markup Language",
+    "category": "开发与配置",
+    "aliases": [],
+    "summary": "人类友好的数据序列化格式，广泛用于 ROS 2 配置文件。",
+    "details": [
+      "YAML 使用缩进表示层级结构，比 JSON 更易读写。",
+      "ROS 2 中 Launch 文件、参数配置、导航参数均采用 YAML 格式。",
+      "注意缩进一致性，混用空格和制表符是常见错误源。"
+    ],
+    "related": [
+      "ros2",
+      "launch",
+      "params",
+      "pid"
+    ],
+    "articleRefs": []
+  },
+  {
+    "id": "log_level",
+    "term": "日志级别",
+    "fullName": "Logging Level",
+    "category": "开发与配置",
+    "aliases": [
+      "Logger Level",
+      "日志等级"
+    ],
+    "summary": "控制日志输出详细程度的标准分类（DEBUG/INFO/WARN/ERROR/FATAL）。",
+    "details": [
+      "DEBUG 用于开发调试详细信息；INFO 为正常运行信息；WARN 表示潜在问题。",
+      "ERROR 表示功能受损但仍可运行；FATAL 表示程序即将崩溃。",
+      "生产环境通常设为 WARN 或 INFO，避免性能开销和信息泄露。"
+    ],
+    "related": [
+      "ros2",
+      "yaml",
+      "jetson"
+    ],
+    "articleRefs": []
+  }
+]
