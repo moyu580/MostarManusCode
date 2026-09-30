@@ -1378,13 +1378,13 @@ describe('Jobs data validation and URL helpers', () => {
   });
 
   it('parses URL state per tab and flags values that need cleanup', () => {
-    assert.deepEqual(readJobsUrlState('', { stackCount: 26, jobsCount: 17 }), { tab: 'stack', page: 1, normalized: false });
-    assert.deepEqual(readJobsUrlState('?tab=jobs', { stackCount: 26, jobsCount: 17 }), { tab: 'jobs', page: 1, normalized: false });
-    assert.deepEqual(readJobsUrlState('?tab=jobs&page=4', { stackCount: 26, jobsCount: 17 }), { tab: 'jobs', page: 4, normalized: false });
-    assert.deepEqual(readJobsUrlState('?tab=jobs&page=9', { stackCount: 26, jobsCount: 17 }), { tab: 'jobs', page: 5, normalized: true });
-    assert.deepEqual(readJobsUrlState('?tab=stack', { stackCount: 26, jobsCount: 17 }), { tab: 'stack', page: 1, normalized: true });
-    assert.deepEqual(readJobsUrlState('?tab=bogus', { stackCount: 26, jobsCount: 17 }), { tab: 'stack', page: 1, normalized: true });
-    assert.deepEqual(readJobsUrlState('?page=abc', { stackCount: 26, jobsCount: 17 }), { tab: 'stack', page: 1, normalized: true });
+    assert.deepEqual(readJobsUrlState('', { stackCount: 26, jobsCount: 20 }), { tab: 'stack', page: 1, normalized: false });
+    assert.deepEqual(readJobsUrlState('?tab=jobs', { stackCount: 26, jobsCount: 20 }), { tab: 'jobs', page: 1, normalized: false });
+    assert.deepEqual(readJobsUrlState('?tab=jobs&page=4', { stackCount: 26, jobsCount: 20 }), { tab: 'jobs', page: 4, normalized: false });
+    assert.deepEqual(readJobsUrlState('?tab=jobs&page=9', { stackCount: 26, jobsCount: 20 }), { tab: 'jobs', page: 5, normalized: true });
+    assert.deepEqual(readJobsUrlState('?tab=stack', { stackCount: 26, jobsCount: 20 }), { tab: 'stack', page: 1, normalized: true });
+    assert.deepEqual(readJobsUrlState('?tab=bogus', { stackCount: 26, jobsCount: 20 }), { tab: 'stack', page: 1, normalized: true });
+    assert.deepEqual(readJobsUrlState('?page=abc', { stackCount: 26, jobsCount: 20 }), { tab: 'stack', page: 1, normalized: true });
   });
 });
 
@@ -1407,7 +1407,7 @@ describe('Jobs page build output', () => {
     const html = fs.readFileSync(jobsPath, 'utf8');
 
     assert.match(html, /<h1 class="terms-title">求职专栏<\/h1>/);
-    assert.match(html, /数据截止 2026-09-29/, 'both tab pages must carry the data cutoff badge');
+    assert.match(html, /数据截止 2026-09-30/, 'both tab pages must carry the data cutoff badge');
 
     // 板块切换：经典拨杆开关 + 两个板块标签（SSR 默认技术栈板块）
     assert.match(html, /role="switch"/);
@@ -1418,11 +1418,11 @@ describe('Jobs page build output', () => {
 
     // SSR 全量降级：24 张技术栈卡 + 15 张岗位卡（岗位面板默认 hidden）
     assert.equal(countMatches(html, /class="term-card tech-card"/g), 26, 'must server-render all 26 stack cards');
-    assert.equal(countMatches(html, /class="term-card job-card"/g), 17, 'must server-render all 17 job cards');
+    assert.equal(countMatches(html, /class="term-card job-card"/g), 20, 'must server-render all 20 job cards');
     assert.doesNotMatch(html, /低频需求/, 'low-frequency stack note must not be rendered');
     assert.match(html, /id="jobs-jobs-panel"[^>]*\shidden/);
     assert.match(html, /<noscript>/, 'no-JS fallback must reveal the jobs panel');
-    assert.equal(countMatches(html, /查看原始岗位页/g), 17, 'every job card must link to its original page');
+    assert.equal(countMatches(html, /查看原始岗位页/g), 20, 'every job card must link to its original page');
     for (const match of html.matchAll(/<a href="(https:\/\/www\.zhipin\.com\/[^"]+)" target="_blank" rel="noopener noreferrer">查看原始岗位页/g)) {
       assert.match(match[1], /^https:\/\/www\.zhipin\.com\/job_detail\//);
     }
@@ -1436,9 +1436,9 @@ describe('Jobs page build output', () => {
     assert.ok(payloadMatch, 'jobs-data JSON island must exist');
     const payload = JSON.parse(payloadMatch[1].replace(/\\u003c/g, '<').replace(/\\u003e/g, '>').replace(/\\u0026/g, '&'));
     assert.equal(payload.techStack.length, 26);
-    assert.equal(payload.positions.length, 17);
-    assert.equal(payload.dataAsOf, '2026-09-29');
-    assert.ok(payload.positions.some((p) => p.title === 'AI潮玩&消费电子测试实习生'), '& must survive JSON escaping');
+    assert.equal(payload.positions.length, 20);
+    assert.equal(payload.dataAsOf, '2026-09-30');
+    assert.ok(payload.positions.some((p) => p.title === '测试开发工程师实习生（智能工程机器人）'), 'CJK punctuation must survive JSON escaping');
     assert.match(html, /"\/jobs\/":\["\/assets\/jobs-[A-Za-z0-9]+\.js"\]/, 'manifest must load the hashed jobs island bundle');
     assert.doesNotMatch(html, /\uFFFD/);
   });
@@ -1446,7 +1446,7 @@ describe('Jobs page build output', () => {
   it('keeps pagination math at five stacks and four jobs per page', () => {
     const data = JSON.parse(fs.readFileSync(path.join(SRC, 'data', 'jobs.json'), 'utf8'));
     assert.equal(data.techStack.length, 26, 'tech stack must rank exactly 26 items');
-    assert.equal(data.positions.length, 17, 'job list must contain exactly 17 positions');
+    assert.equal(data.positions.length, 20, 'job list must contain exactly 20 positions');
 
     const stackPages = Array.from(
       { length: jobsTotalPages(data.techStack.length, STACK_PER_PAGE) },
@@ -1457,7 +1457,7 @@ describe('Jobs page build output', () => {
       { length: jobsTotalPages(data.positions.length, JOBS_PER_PAGE) },
       (_, index) => data.positions.slice(index * JOBS_PER_PAGE, (index + 1) * JOBS_PER_PAGE).length,
     );
-    assert.deepEqual(jobPages, [4, 4, 4, 4, 1], 'job pagination must show 4 per page');
+    assert.deepEqual(jobPages, [4, 4, 4, 4, 4], 'job pagination must show 4 per page');
 
     // 关联标签必须全部指向有效技术栈条目
     const ids = new Set(data.techStack.map((item) => item.id));

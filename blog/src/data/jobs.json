@@ -1,64 +1,64 @@
 {
-  "dataAsOf": "2026-09-29",
-  "source": "BOSS直聘「机器人实习」·杭州，两轮抓取（09-25 / 09-29），当前 17 个本科可投在招岗位",
+  "dataAsOf": "2026-09-30",
+  "source": "BOSS直聘「机器人实习」·杭州，三轮抓取（09-25 / 09-29 / 09-30），当前 20 个本科可投在招岗位",
   "techStack": [
     {
-      "id": "algorithm",
-      "rank": 1,
-      "name": "算法",
-      "category": "系统/工程",
-      "count": 10,
-      "percent": 59,
-      "summary": "出现频率最高的泛化关键词，覆盖路径规划、感知、控制与决策等方向。它代表岗位对数学基础与问题建模能力的隐性门槛，算法类岗位面试通常会追问具体原理与数据流。",
-      "related": ["cpp", "path-planning", "python", "navigation", "perception"]
-    },
-    {
-      "id": "cpp",
-      "rank": 2,
-      "name": "C++",
-      "category": "编程语言",
-      "count": 9,
-      "percent": 53,
-      "summary": "运控/算法方向的分水岭语言，强调工程实现与系统调试能力。底盘驱动、控制器等性能敏感模块普遍以 C++ 交付，面试常问内存管理、编译链接与调试经验。",
-      "related": ["ros-ros2", "python", "embedded", "motion-control"]
-    },
-    {
       "id": "python",
-      "rank": 3,
+      "rank": 1,
       "name": "Python",
       "category": "编程语言",
-      "count": 9,
-      "percent": 53,
-      "summary": "与 ROS 并列的第一梯队入场券，覆盖测试脚本、评测工具与数据处理等场景。上手快、生态全，是测试方向与 AI 方向岗位的通用语言，pytest 等工具链经验是加分项。",
-      "related": ["ros-ros2", "cpp", "linux", "deep-learning"]
+      "count": 13,
+      "percent": 65,
+      "summary": "本批实习岗覆盖面最广的第一入场券，从测试脚本、评测工具到大模型训练无处不在。pytest 等工具链经验是测试方向的加分项，PyTorch 生态则是算法方向的基础。",
+      "related": ["ros-ros2", "cpp", "linux", "deep-learning", "pytorch"]
     },
     {
       "id": "ros-ros2",
-      "rank": 4,
+      "rank": 2,
       "name": "ROS/ROS2",
       "category": "机器人框架/库",
-      "count": 9,
-      "percent": 53,
+      "count": 13,
+      "percent": 65,
       "summary": "机器人开发的事实标准中间件，提供节点通信、硬件抽象与仿真调试工具链。与 Python 并列本批实习岗的“入场券”，节点编写、launch 管理、bag 录制与 RViz 调试是常见考点。",
       "related": ["cpp", "python", "slam", "navigation", "motion-control"]
+    },
+    {
+      "id": "algorithm",
+      "rank": 3,
+      "name": "算法",
+      "category": "系统/工程",
+      "count": 13,
+      "percent": 65,
+      "summary": "覆盖路径规划、感知、控制与决策等方向的泛化关键词。它代表岗位对数学基础与问题建模能力的隐性门槛，算法类岗位面试通常会追问具体原理与数据流。",
+      "related": ["cpp", "path-planning", "python", "navigation"]
+    },
+    {
+      "id": "cpp",
+      "rank": 4,
+      "name": "C++",
+      "category": "编程语言",
+      "count": 12,
+      "percent": 60,
+      "summary": "运控/SLAM/算法方向的分水岭语言，强调工程实现与系统调试能力。底盘驱动、激光雷达前端等性能敏感模块普遍以 C++ 交付，面试常问内存管理、编译链接与调试经验。",
+      "related": ["ros-ros2", "python", "embedded", "motion-control"]
     },
     {
       "id": "sensors",
       "rank": 5,
       "name": "传感器",
       "category": "硬件/机械",
-      "count": 8,
-      "percent": 47,
-      "summary": "IMU、激光雷达、RGB-D、轮式里程计等机器人感知的硬件基础。驱动对接、外参标定与故障排查是硬件集成类岗位的核心日常。",
-      "related": ["lidar", "can", "embedded", "slam"]
+      "count": 10,
+      "percent": 50,
+      "summary": "IMU、激光雷达、RGB-D、相机、GPS 等机器人感知的硬件基础。驱动对接、外参标定与多传感器数据融合是硬件集成与算法类岗位的共同日常。",
+      "related": ["lidar", "embedded", "slam", "motion-control"]
     },
     {
       "id": "linux",
       "rank": 6,
       "name": "Linux",
       "category": "系统/工程",
-      "count": 7,
-      "percent": 41,
+      "count": 8,
+      "percent": 40,
       "summary": "机器人开发的标准工作环境，涉及命令行操作、编译构建与日志排查。熟悉 shell、CMake 构建与常用排查命令是面试高频题。",
       "related": ["python", "cpp", "git", "embedded"]
     },
@@ -68,202 +68,216 @@
       "name": "嵌入式",
       "category": "系统/工程",
       "count": 6,
-      "percent": 35,
-      "summary": "把算法与系统部署到板端计算平台的工程能力，涉及交叉编译、资源优化与外设驱动。硬件与部署类岗位的加分门槛，常与 CAN、电路知识配合出现。",
-      "related": ["cpp", "sensors", "linux", "can"]
+      "percent": 30,
+      "summary": "把算法与系统部署到 Jetson、RK3588 等板端计算平台的工程能力，涉及交叉编译、资源优化与推理加速。硬件集成与 SLAM 落地岗位的核心门槛，常与 CAN、电路知识配合出现。",
+      "related": ["cpp", "sensors", "linux"]
+    },
+    {
+      "id": "rl",
+      "rank": 8,
+      "name": "强化学习",
+      "category": "AI/算法",
+      "count": 6,
+      "percent": 30,
+      "summary": "运控、无人机与具身智能方向的核心要求，PPO/SAC 等算法与 Sim-to-Real 是新热点。面试常问模仿学习与强化学习的区别，诚实展示“在学路线”通常好于夸大经验。",
+      "related": ["motion-control", "isaac", "deep-learning"]
     },
     {
       "id": "test-report",
-      "rank": 8,
+      "rank": 9,
       "name": "测试报告",
       "category": "测试技能",
       "count": 6,
-      "percent": 35,
+      "percent": 30,
       "summary": "测试方向岗位的高频交付物，要求结构化记录现象、证据、结论与回归结果。能把排错过程写成别人能看懂的文档，是测试岗简历的差异化亮点。",
       "related": ["test-case", "bug-locating", "unit-test"]
-    },
-    {
-      "id": "test-case",
-      "rank": 9,
-      "name": "测试用例",
-      "category": "测试技能",
-      "count": 5,
-      "percent": 29,
-      "summary": "测试设计的核心交付物，考察边界条件、等价类与场景覆盖思维。“给一个功能设计测试用例”是测试岗最常见的现场手写题。",
-      "related": ["test-report", "unit-test", "auto-test"]
     },
     {
       "id": "slam",
       "rank": 10,
       "name": "SLAM",
       "category": "AI/算法",
-      "count": 4,
-      "percent": 24,
-      "summary": "同步定位与建图，覆盖 Cartographer、AMCL 等主流方案。导航方向的核心技术栈，面试常考建图与定位的分工、坐标系关系与漂移排查。",
+      "count": 5,
+      "percent": 25,
+      "summary": "同步定位与建图，覆盖 Cartographer、AMCL、FAST-LIO/Point-LIO 等主流方案。导航与 SLAM 方向的核心技术栈，面试常考建图与定位的分工、坐标系关系与漂移排查。",
       "related": ["lidar", "navigation", "ros-ros2", "path-planning"]
     },
     {
-      "id": "auto-test",
+      "id": "vla",
       "rank": 11,
-      "name": "自动化测试",
-      "category": "测试技能",
-      "count": 4,
-      "percent": 24,
-      "summary": "从测试脚本编写到流程建设的工程化能力，pytest 等框架与 CI 集成是常见考点。测开与测试类岗位的通用要求，配合分层测试体系（单元/集成/E2E）一起考察。",
-      "related": ["test-case", "unit-test", "python", "perf-test"]
-    },
-    {
-      "id": "path-planning",
-      "rank": 12,
-      "name": "路径规划",
+      "name": "VLA",
       "category": "AI/算法",
-      "count": 4,
-      "percent": 24,
-      "summary": "从 A*、Dijkstra 到 Hybrid A* 与采样规划的全局/局部规划算法族。导航类岗位的核心考点，常与 DWA、TEB 等局部规划器一起被追问原理与适用场景。",
-      "related": ["navigation", "algorithm", "cpp", "motion-control"]
+      "count": 5,
+      "percent": 25,
+      "summary": "视觉-语言-动作模型，具身智能最热的前沿方向，海康、微分智飞等岗位明确招募。能讲清数据流、RT 系列与 OpenVLA 等代表工作、数据构建与 Sim-to-Real 边界是加分项。",
+      "related": ["llm", "multimodal", "deep-learning"]
     },
     {
-      "id": "bug-locating",
-      "rank": 13,
-      "name": "Bug定位",
+      "id": "test-case",
+      "rank": 12,
+      "name": "测试用例",
       "category": "测试技能",
-      "count": 3,
-      "percent": 18,
-      "summary": "分层验证、证据提取、事实与推测分离的系统化排错方法论。测试与支持岗位的核心能力，能用完整案例讲清定位流程是面试杀手锏。",
-      "related": ["test-report", "test-case"]
+      "count": 5,
+      "percent": 25,
+      "summary": "测试设计的核心交付物，考察边界条件、等价类与场景覆盖思维。“给一个功能设计测试用例”是测试岗最常见的现场手写题。",
+      "related": ["test-report", "unit-test", "auto-test"]
+    },
+    {
+      "id": "deep-learning",
+      "rank": 13,
+      "name": "深度学习",
+      "category": "AI/算法",
+      "count": 5,
+      "percent": 25,
+      "summary": "PyTorch/TensorFlow 框架下的模型训练与部署能力，覆盖感知、多模态与具身智能方向。算法类岗位的核心要求，面试常问经典网络架构与训练调参经验。",
+      "related": ["llm", "vla", "pytorch", "tensorflow"]
+    },
+    {
+      "id": "lidar",
+      "rank": 14,
+      "name": "激光雷达",
+      "category": "AI/算法",
+      "count": 5,
+      "percent": 25,
+      "summary": "移动机器人建图与定位的主力传感器，涉及点云处理与数据完整性检查。SLAM/导航岗位几乎必问的话题，常与 IMU 做融合，LIO 前端框架是新的考察重点。",
+      "related": ["slam", "sensors", "ros-ros2"]
+    },
+    {
+      "id": "motion-control",
+      "rank": 15,
+      "name": "运动控制",
+      "category": "AI/算法",
+      "count": 5,
+      "percent": 25,
+      "summary": "从差速底盘运动学到 PID、MPC 的控制算法族，cmd_vel 是速度控制的标准接口。运控与无人机方向岗位的核心考点，也常出现在整车联调场景中。",
+      "related": ["rl", "cpp", "ros-ros2", "path-planning"]
     },
     {
       "id": "git",
-      "rank": 14,
+      "rank": 16,
       "name": "Git",
       "category": "系统/工程",
-      "count": 3,
-      "percent": 18,
+      "count": 4,
+      "percent": 20,
       "summary": "版本管理与团队协作的基础设施，分支策略、提交规范与代码评审是日常。单独作为硬性要求出现频率不高，但几乎所有岗位都默认掌握。",
       "related": ["linux", "python", "cpp"]
-    },
-    {
-      "id": "vla",
-      "rank": 15,
-      "name": "VLA",
-      "category": "AI/算法",
-      "count": 3,
-      "percent": 18,
-      "summary": "视觉-语言-动作模型，具身智能的前沿方向。本批在仿真评测、整机测试与无人机算法岗位均有出现，作为差异化加分项，能讲清数据流与适用边界即可。",
-      "related": ["llm", "deep-learning"]
-    },
-    {
-      "id": "unit-test",
-      "rank": 16,
-      "name": "单元测试",
-      "category": "测试技能",
-      "count": 3,
-      "percent": 18,
-      "summary": "对最小可测单元做自动化验证的工程习惯，pytest/gtest 是常用框架。测开岗位用它考察质量意识，研发岗位用它考察工程素养。",
-      "related": ["test-case", "test-report", "auto-test"]
     },
     {
       "id": "llm",
       "rank": 17,
       "name": "大模型",
       "category": "AI/算法",
-      "count": 3,
-      "percent": 18,
-      "summary": "LLM/Agent 相关技术正在加速渗透机器人岗位；加上 VLA 与多模态，相关要求合计覆盖约三成岗位。作为简历差异化加分项，Prompt 工程、RAG 与 Agent 评测是常见切入点。",
-      "related": ["vla", "deep-learning", "python"]
+      "count": 4,
+      "percent": 20,
+      "summary": "LLM/Agent 相关技术正在加速渗透机器人岗位；加上 VLA 与多模态，相关要求合计覆盖约三分之一的岗位。Prompt 工程、RAG、Agentic Robotics 与 Agent 评测是常见切入点。",
+      "related": ["vla", "multimodal", "deep-learning", "python"]
     },
     {
-      "id": "navigation",
+      "id": "auto-test",
       "rank": 18,
-      "name": "导航算法",
-      "category": "AI/算法",
-      "count": 3,
-      "percent": 18,
-      "summary": "覆盖定位、建图、规划、避障的完整导航链路，Nav2 是 ROS 2 生态的标准框架。面试常问各 server 的分工、参数含义与异常排查思路。",
-      "related": ["path-planning", "slam", "ros-ros2", "perception"]
+      "name": "自动化测试",
+      "category": "测试技能",
+      "count": 4,
+      "percent": 20,
+      "summary": "从测试脚本编写到流程建设的工程化能力，pytest 等框架与 CI 集成是常见考点。测开与测试类岗位的通用要求，配合分层测试体系（单元/集成/E2E）一起考察。",
+      "related": ["test-case", "unit-test", "python"]
     },
     {
-      "id": "rl",
+      "id": "path-planning",
       "rank": 19,
-      "name": "强化学习",
+      "name": "路径规划",
       "category": "AI/算法",
-      "count": 3,
-      "percent": 18,
-      "summary": "运控与无人机算法方向的新兴要求，PPO 等算法与仿真训练环境配合使用。当前多作为加分项或可选招募方向出现，诚实展示“在学路线”通常好于夸大经验。",
-      "related": ["motion-control", "isaac", "deep-learning"]
+      "count": 4,
+      "percent": 20,
+      "summary": "从 A*、Dijkstra 到 Hybrid A* 与采样规划的全局/局部规划算法族。导航类岗位的核心考点，常与 DWA、TEB 等局部规划器一起被追问原理与适用场景。",
+      "related": ["navigation", "algorithm", "cpp", "motion-control"]
     },
     {
-      "id": "perf-test",
+      "id": "bug-locating",
       "rank": 20,
-      "name": "性能测试",
+      "name": "Bug定位",
       "category": "测试技能",
       "count": 3,
-      "percent": 18,
-      "summary": "考察系统在负载、时长与极端条件下的稳定性表现。测试方向岗位的高频词，关注延迟、资源占用与异常容错指标。",
-      "related": ["test-report", "test-case", "auto-test"]
-    },
-    {
-      "id": "lidar",
-      "rank": 21,
-      "name": "激光雷达",
-      "category": "AI/算法",
-      "count": 3,
-      "percent": 18,
-      "summary": "移动机器人建图与定位的主力传感器，涉及点云处理与数据完整性检查。SLAM/导航岗位几乎必问的话题，常与 IMU 做融合。",
-      "related": ["slam", "sensors", "ros-ros2", "perception"]
-    },
-    {
-      "id": "motion-control",
-      "rank": 22,
-      "name": "运动控制",
-      "category": "AI/算法",
-      "count": 3,
-      "percent": 18,
-      "summary": "从差速底盘运动学到 PID、MPC 的控制算法族，cmd_vel 是速度控制的标准接口。运控与无人机方向岗位的核心考点，也常出现在整车联调场景中。",
-      "related": ["rl", "cpp", "ros-ros2", "path-planning"]
-    },
-    {
-      "id": "can",
-      "rank": 23,
-      "name": "CAN",
-      "category": "硬件/机械",
-      "count": 2,
-      "percent": 12,
-      "summary": "机器人底盘与执行器常用的总线协议，涉及报文收发与故障排查。硬件集成类岗位的加分项，常与 EtherCAT、电机驱动一起出现。",
-      "related": ["sensors", "embedded"]
+      "percent": 15,
+      "summary": "分层验证、证据提取、事实与推测分离的系统化排错方法论。测试与支持岗位的核心能力，能用完整案例讲清定位流程是面试杀手锏。",
+      "related": ["test-report", "test-case"]
     },
     {
       "id": "isaac",
-      "rank": 24,
+      "rank": 21,
       "name": "Isaac",
       "category": "机器人框架/库",
-      "count": 2,
-      "percent": 12,
-      "summary": "NVIDIA Isaac Sim 具身智能仿真平台，用于合成数据、策略训练与自动化评测。多作为仿真类岗位的优先项，与 MuJoCo、Gazebo 同属仿真工具族。",
+      "count": 3,
+      "percent": 15,
+      "summary": "NVIDIA Isaac Sim/Lab 具身智能仿真平台，用于合成数据、策略训练与自动化评测。仿真与具身智能算法岗位的优先项，与 MuJoCo、Gazebo 同属仿真工具族。",
       "related": ["rl", "deep-learning", "python"]
     },
     {
-      "id": "perception",
-      "rank": 25,
-      "name": "感知算法",
+      "id": "pytorch",
+      "rank": 22,
+      "name": "PyTorch",
       "category": "AI/算法",
-      "count": 2,
-      "percent": 12,
-      "summary": "覆盖目标检测、多传感器融合感知与定位感知链路的算法方向，在综合研发与无人机算法岗位出现。与 SLAM、激光雷达强相关，是感知向岗位的核心考点。",
-      "related": ["algorithm", "slam", "lidar", "deep-learning"]
+      "count": 3,
+      "percent": 15,
+      "summary": "深度学习的事实标准框架，具身智能与多模态算法岗位的通用要求，覆盖数据处理、模型训练、推理部署全流程。算法岗普遍要求熟练，与 HuggingFace 生态配合是加分项。",
+      "related": ["deep-learning", "tensorflow", "python", "llm"]
     },
     {
-      "id": "deep-learning",
-      "rank": 26,
-      "name": "深度学习",
+      "id": "tensorflow",
+      "rank": 23,
+      "name": "TensorFlow",
       "category": "AI/算法",
-      "count": 2,
-      "percent": 12,
-      "summary": "PyTorch/TensorFlow 框架下的模型训练与部署能力，覆盖感知与多模态方向。视觉类岗位的核心要求，面试常问经典网络与训练调参经验。",
-      "related": ["llm", "vla", "python", "perception"]
+      "count": 3,
+      "percent": 15,
+      "summary": "与 PyTorch 并列的主流深度学习框架，在算法类岗位常以“二选一”形式出现。科研复现与工业部署各有生态，两者都写上简历时面试可能追问差异与选型理由。",
+      "related": ["deep-learning", "pytorch", "python"]
+    },
+    {
+      "id": "unit-test",
+      "rank": 24,
+      "name": "单元测试",
+      "category": "测试技能",
+      "count": 3,
+      "percent": 15,
+      "summary": "对最小可测单元做自动化验证的工程习惯，pytest/gtest 是常用框架。测开岗位用它考察质量意识，研发岗位用它考察工程素养。",
+      "related": ["test-case", "test-report", "auto-test"]
+    },
+    {
+      "id": "multimodal",
+      "rank": 25,
+      "name": "多模态",
+      "category": "AI/算法",
+      "count": 3,
+      "percent": 15,
+      "summary": "视觉-语言等多模态表征学习与跨模态对齐，是大模型-具身智能岗位的核心课题。与 VLA、大模型配合构成具身智能岗位的差异化加分组合，能讲清架构分层即可。",
+      "related": ["llm", "vla", "deep-learning"]
+    },
+    {
+      "id": "navigation",
+      "rank": 26,
+      "name": "导航算法",
+      "category": "AI/算法",
+      "count": 3,
+      "percent": 15,
+      "summary": "覆盖定位、建图、规划、避障的完整导航链路，Nav2 是 ROS 2 生态的标准框架。面试常问各 server 的分工、参数含义与异常排查思路。",
+      "related": ["path-planning", "slam", "ros-ros2", "motion-control"]
     }
   ],
   "positions": [
+    {
+      "id": "haikang-embodied-llm-intern",
+      "title": "大模型-具身智能实习生",
+      "company": "海康威视",
+      "salary": "200-400元/天",
+      "location": "杭州·滨江区·滨江区政府",
+      "degree": "本科",
+      "scale": "10000人以上",
+      "tier": "强推",
+      "matchScore": 70,
+      "stack": ["Git", "Isaac", "MoveIt", "MuJoCo", "PyTorch", "Python", "ROS/ROS2", "TensorFlow", "VLA", "多模态", "大模型", "强化学习", "机器学习", "模仿学习", "深度学习", "算法", "运动控制"],
+      "jd": "参与具身大模型架构设计、数据构建与规模化预训练（VLA、世界模型、多模态对齐），研究面向机器人操作与运动控制的强化学习（策略学习、奖励建模、Sim-to-Real），探索 LLM 与机器人融合的 Agentic Robotics（任务分解、长程规划、工具调用、多智能体协作），并负责模型压缩、蒸馏、量化与端侧部署加速。要求计算机/AI/机器人/自动化/电子/数学/物理相关专业在读硕士或博士（本科高年级优秀者亦可考虑），扎实的机器学习/深度学习/强化学习基础，熟练 Python 与 PyTorch/JAX/TensorFlow 至少一种；连续实习不少于 3 个月、每周 4 天以上者优先。",
+      "url": "https://www.zhipin.com/job_detail/dd872355e916f99b0nNy3d61EFdZ.html"
+    },
     {
       "id": "zjuscience-test-intern",
       "title": "测试实习生",
@@ -377,20 +391,6 @@
       "url": "https://www.zhipin.com/job_detail/6e84fe2f8c4f53ad0nN_3ty7EVpY.html"
     },
     {
-      "id": "leimeng-ai-toy-test-intern",
-      "title": "AI潮玩&消费电子测试实习生",
-      "company": "杭州镭萌科技",
-      "salary": "100-150元/天",
-      "location": "杭州·余杭区·闲林",
-      "degree": "本科",
-      "scale": "20-99人",
-      "tier": "强推",
-      "matchScore": 21,
-      "stack": ["大模型", "嵌入式", "性能测试", "算法"],
-      "jd": "配合研发团队开展随身 AI 潮玩生命体产品的功能、性能与用户体验测试，协助数据采集、整理与标注以支撑算法模型迭代，并整理项目文档。自研业内首款随身 AI 潮玩，打通硬件、软件、垂直领域大模型微调全链路；专业不限，对 AI 潮玩、智能硬件测试&研发感兴趣者优先；每周可到岗 4 天及以上、能稳定实习 5 个月以上者优先。",
-      "url": "https://www.zhipin.com/job_detail/93aa3e7efd9da8ac0nN_3Nm_FVRW.html"
-    },
-    {
       "id": "shike-agv-engineer-intern",
       "title": "工业机器人实施工程师（可接受27届实习）",
       "company": "时课智能",
@@ -475,6 +475,34 @@
       "url": "https://www.zhipin.com/job_detail/e3b397c676cc938c0nR50925EFtS.html"
     },
     {
+      "id": "youyi-slam-algo",
+      "title": "机器人slam算法工程师",
+      "company": "有怡科技",
+      "salary": "200-250元/天",
+      "location": "杭州·滨江区·长河",
+      "degree": "本科",
+      "scale": "",
+      "tier": "可投",
+      "matchScore": 55,
+      "stack": ["C++", "PCL", "Python", "ROS/ROS2", "SLAM", "传感器", "嵌入式", "感知算法", "深度学习", "激光雷达", "点云", "算法"],
+      "jd": "负责移动机器人/无人平台的 SLAM 系统研发：激光雷达里程计、定位、建图、回环检测与重定位，多传感器（LiDAR/IMU/相机/GPS）数据融合与高精度定位，基于 FAST-LIO/Point-LIO 等前沿框架二次开发与性能优化，并协助算法在 Jetson/RK3588/X86 等嵌入式平台移植部署。要求深入理解 SLAM 理论，精通 C++/Python 与 ROS/ROS2，有 FAST-LIO/Point-LIO 实际项目经验，掌握 g2o/Ceres 非线性优化与 EKF/UKF 滤波；有 PCL/Open3D 点云工具链、语义 SLAM 或 CUDA/TensorRT 嵌入式优化经验加分。",
+      "url": "https://www.zhipin.com/job_detail/fae86ea8aaaa70d40nJ72NS1EVNX.html"
+    },
+    {
+      "id": "wusi-embodied-algo-intern",
+      "title": "具身智能算法实习生",
+      "company": "杭州无问硅一科技",
+      "salary": "200-400元/天",
+      "location": "杭州·余杭区·仓前",
+      "degree": "本科",
+      "scale": "20-99人",
+      "tier": "可投",
+      "matchScore": 55,
+      "stack": ["C++", "Linux", "PyTorch", "Python", "ROS/ROS2", "TensorFlow", "VLA", "传感器", "多模态", "大模型", "强化学习", "机器学习", "模仿学习", "深度学习", "激光雷达", "算法"],
+      "jd": "跟踪具身智能、多模态大模型、强化学习前沿论文与开源方案，独立完成模仿学习、行为克隆、策略学习、生成式决策、三维重建等算法的复现与优化；负责多模态数据处理与模型训练调优，并基于 ROS/ROS2 在移动机器人、机械臂等自研平台完成真机部署调试与量化评测。要求在读本科（大二及以上优先）/硕博士，熟练 Python 与 PyTorch/TensorFlow，掌握 Transformer/CNN 与扩散模型基础，了解强化学习、模仿学习、世界模型；有顶会论文复现、开源贡献、竞赛获奖或真机调试经验加分。",
+      "url": "https://www.zhipin.com/job_detail/4106234e9968f46f0nN729-1FVBR.html"
+    },
+    {
       "id": "yousai-robot-test-engineer",
       "title": "机器人测试工程师",
       "company": "杭州优赛机器人",
@@ -501,6 +529,20 @@
       "stack": ["SLAM", "VLA", "强化学习", "感知算法", "算法", "运动控制"],
       "jd": "多方向算法实习生招募：VLA 算法、世界模型、AI Agent、决策规划、飞行系统、强化学习、感知算法、空中机器人控制、机械臂控制、无人机系统集成、SLAM 等方向。深度参与无人机整机及具身智能研究与真实场景落地，完整经历从算法设计到产品化的全流程；表现优秀者可获转正绿色通道，优先参与核心项目与关键技术攻关。",
       "url": "https://www.zhipin.com/job_detail/71d4590281e116180ndz0t21FlJR.html"
+    },
+    {
+      "id": "qianhu-motion-control-intern",
+      "title": "机器人运控算法工程师（实习）",
+      "company": "千湖具身",
+      "salary": "120-140元/天",
+      "location": "杭州",
+      "degree": "本科",
+      "scale": "0-20人",
+      "tier": "可投",
+      "matchScore": 41,
+      "stack": ["C++", "Python", "ROS/ROS2", "强化学习", "算法", "运动控制"],
+      "jd": "机器人运控算法方向：了解 ROS 2 基本概念和通信机制，能够进行简单的节点开发和调试；对机器人强化学习有一定了解，知道 PPO 等常见强化学习算法的基本原理，有仿真或相关项目经验者优先。掌握 C++/Python 中至少一种，具备良好的代码习惯与问题分析能力；对机器人、强化学习、运动控制方向有浓厚兴趣，有相关课程设计、科研项目、竞赛或个人项目经验者优先。",
+      "url": "https://www.zhipin.com/job_detail/1baa729deb6ac0ad0nN939q9FFtU.html"
     }
   ]
 }

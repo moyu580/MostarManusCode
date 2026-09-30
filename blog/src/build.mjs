@@ -1143,7 +1143,7 @@ function jobsPage() {
           <span class="job-company-name">${escapeHtml(p.company)}</span>
           <span class="job-score" aria-label="匹配分 ${p.matchScore}">匹配分 ${p.matchScore}</span>
         </div>
-        <div class="job-meta"><span>💰 ${escapeHtml(p.salary)}</span><span>📍 ${escapeHtml(p.location)}</span><span>🎓 ${escapeHtml(p.degree)}</span><span>🏢 ${escapeHtml(p.scale)}</span></div>
+        <div class="job-meta"><span>💰 ${escapeHtml(p.salary)}</span><span>📍 ${escapeHtml(p.location)}</span><span>🎓 ${escapeHtml(p.degree)}</span>${p.scale ? `<span>🏢 ${escapeHtml(p.scale)}</span>` : ''}</div>
         <p class="term-summary job-jd">${escapeHtml(p.jd)}</p>
         ${(p.stack || []).length ? `<div class="term-related job-stack-tags">${p.stack.map((name) => `<span class="tag">${escapeHtml(name)}</span>`).join('')}</div>` : ''}
         <div class="term-refs"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer">查看原始岗位页 ↗</a></div>

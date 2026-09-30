@@ -122,7 +122,7 @@ function JobCard({ position }) {
           <span>💰 {position.salary}</span>
           <span>📍 {position.location}</span>
           <span>🎓 {position.degree}</span>
-          <span>🏢 {position.scale}</span>
+          {position.scale ? <span>🏢 {position.scale}</span> : null}
         </div>
         <p className="term-summary job-jd">{position.jd}</p>
         {(position.stack || []).length ? (

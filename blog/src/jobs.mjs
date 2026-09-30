@@ -91,9 +91,12 @@ export function validateJobsData(data) {
 
     requireFields(
       item,
-      ['title', 'company', 'salary', 'location', 'degree', 'scale', 'tier', 'jd', 'url'],
+      ['title', 'company', 'salary', 'location', 'degree', 'tier', 'jd', 'url'],
       'positions',
     );
+    if (item.scale !== undefined && typeof item.scale !== 'string') {
+      throw new Error(`jobs positions ${item.id}: scale must be a string when present`);
+    }
     if (!item.url.startsWith('https://')) {
       throw new Error(`jobs positions ${item.id}: url must be https://`);
     }
