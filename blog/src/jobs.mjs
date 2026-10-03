@@ -65,6 +65,9 @@ export function validateJobsData(data) {
     if (!Number.isSafeInteger(item.percent) || item.percent < 0 || item.percent > 100) {
       throw new Error(`jobs techStack ${item.id}: percent must be 0-100`);
     }
+    if (item.count > data.positions.length || item.percent !== Math.round(item.count * 100 / data.positions.length)) {
+      throw new Error(`jobs techStack ${item.id}: count/percent must match ${data.positions.length} positions`);
+    }
     if (!isStringArray(item.related)) {
       throw new Error(`jobs techStack ${item.id}: related must be an array of ids`);
     }

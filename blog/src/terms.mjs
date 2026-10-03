@@ -79,10 +79,6 @@ export function groupGlossarySearchResults(entries, query, category, validCatego
   };
 }
 
-export function filterGlossary(entries, query, category, validCategories) {
-  return groupGlossarySearchResults(entries, query, category, validCategories).results;
-}
-
 export function termIdFromHash(value) {
   if (typeof value !== 'string') return '';
   let raw = value.charAt(0) === '#' ? value.slice(1) : value;

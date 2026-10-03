@@ -71,7 +71,7 @@ function SwitchRow({ tab, onTabChange }) {
   );
 }
 
-function StackCard({ item, pulse, onRelatedClick }) {
+function StackCard({ item, totalPositions, pulse, onRelatedClick }) {
   const relatedLinks = (item.related || []).map((ref, index) => (
     <React.Fragment key={ref}>
       {index > 0 ? <span className="jobs-tag-sep">·</span> : null}
@@ -89,11 +89,11 @@ function StackCard({ item, pulse, onRelatedClick }) {
         <span className="term-fullname">{item.category}</span>
       </header>
       <div className="term-body">
-        <div className="tech-demand" aria-label={`要求该技术栈的岗位 ${item.count} / 15，占比 ${item.percent}%`}>
+        <div className="tech-demand" aria-label={`要求该技术栈的岗位 ${item.count} / ${totalPositions}，占比 ${item.percent}%`}>
           <div className="tech-demand-track" aria-hidden="true">
             <div className="tech-demand-fill" style={{ width: `${item.percent}%` }} />
           </div>
-          <span className="tech-demand-text">{item.count} / 15 · {item.percent}%</span>
+          <span className="tech-demand-text">{item.count} / {totalPositions} · {item.percent}%</span>
         </div>
         <p className="term-summary">{item.summary}</p>
         {relatedLinks.length ? (
@@ -449,6 +449,7 @@ function JobsExplorer({ data, frames }) {
               <StackCard
                 key={item.id}
                 item={item}
+                totalPositions={positions.length}
                 pulse={pulseId === item.id}
                 onRelatedClick={onStackRelatedClick}
               />

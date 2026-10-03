@@ -10,37 +10,11 @@ import matter from 'gray-matter';
 import { mdToHtml, escapeHtml, escapeXml } from './markdown.mjs';
 import config from './config.mjs';
 import { isValidCategory } from './filters.mjs';
-import {
-  filterGlossary,
-  getTermNameMatchRank,
-  groupGlossarySearchResults,
-  matchesGlossaryRelatedContent,
-  normalizeTermsFilterState,
-  normalizeTermsText,
-  TERMS_PER_PAGE,
-} from './terms.mjs';
-import {
-  JOBS_PER_PAGE,
-  STACK_PER_PAGE,
-  jobsTotalPages,
-  validateJobsData,
-} from './jobs.mjs';
+import { TERMS_PER_PAGE } from './terms.mjs';
+import { STACK_PER_PAGE, jobsTotalPages, validateJobsData } from './jobs.mjs';
 import { HomePageBody, renderPostCard, RelatedPosts, PostMeta } from './ui/index.mjs';
 import { installNavigationGate } from './client/navigation-bootstrap.mjs';
 
-export {
-  filterGlossary,
-  getTermNameMatchRank,
-  groupGlossarySearchResults,
-  matchesGlossaryRelatedContent,
-  normalizeTermsFilterState,
-  normalizeTermsText,
-  TERMS_PER_PAGE,
-  JOBS_PER_PAGE,
-  STACK_PER_PAGE,
-  jobsTotalPages,
-  validateJobsData,
-};
 
 const siteName = config.site.seoName || config.site.title;
 const ROOT = process.cwd();
@@ -1123,9 +1097,9 @@ function jobsPage() {
         <span class="term-fullname">${escapeHtml(item.category)}</span>
       </header>
       <div class="term-body">
-        <div class="tech-demand" aria-label="要求该技术栈的岗位 ${item.count} / 15，占比 ${item.percent}%">
+        <div class="tech-demand" aria-label="要求该技术栈的岗位 ${item.count} / ${positions.length}，占比 ${item.percent}%">
           <div class="tech-demand-track" aria-hidden="true"><div class="tech-demand-fill" style="width:${item.percent}%"></div></div>
-          <span class="tech-demand-text">${item.count} / 15 · ${item.percent}%</span>
+          <span class="tech-demand-text">${item.count} / ${positions.length} · ${item.percent}%</span>
         </div>
         <p class="term-summary">${escapeHtml(item.summary)}</p>
         ${relatedHtml}
