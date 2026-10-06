@@ -18,6 +18,10 @@ jobs:
           java-version: 21
           cache: maven
       - run: bash ./mvnw -B test
+        env:
+          # Context initialization needs a key; these tests must not call a real model.
+          SPRING_AI_OPENAI_API_KEY: ci-placeholder
+          SPRING_AI_OPENAI_BASE_URL: http://127.0.0.1:9
 
   blog:
     runs-on: ubuntu-latest
